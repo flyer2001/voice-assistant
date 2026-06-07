@@ -1,0 +1,53 @@
+# Swift / SPM
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+DerivedData/
+*.dSYM.zip
+*.dSYM
+
+# Xcode user-specific
+xcuserdata/
+*.moved-aside
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Secrets / local config — NEVER commit
+secrets.local
+secrets.local.*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!secrets.example
+
+# WhisperKit downloaded models (large, fetched at runtime)
+Models/
+*.mlmodelc
+*.mlpackage
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+*.log
+
+# Build artifacts
+*.ipa
+*.app
+*.dmg
+
+# Tests output
+/tmp/test.log
+.coverage/
