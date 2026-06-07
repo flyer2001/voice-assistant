@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "voice",
+    name: "voice-assistant",
     platforms: [
-        .macOS(.v14),
         .iOS(.v17),
+        .macOS(.v14),
     ],
     products: [
-        .library(name: "voice", targets: ["voice"]),
+        .library(name: "VoiceAssistant", targets: ["VoiceAssistant"]),
     ],
     targets: [
         .target(
-            name: "voice",
-            path: "Sources/voice"
+            name: "VoiceAssistant",
+            path: "Sources/VoiceAssistant"
         ),
         .testTarget(
-            name: "voiceTests",
-            dependencies: ["voice"],
-            path: "Tests/voiceTests"
+            name: "VoiceAssistantTests",
+            dependencies: ["VoiceAssistant"],
+            path: "Tests/VoiceAssistantTests"
         ),
     ]
 )

@@ -10,18 +10,44 @@
 - [x] `LICENSE` placeholder (proprietary)
 - [x] `.gitignore` (Swift/SPM/Xcode/secrets/WhisperKit models)
 - [x] `secrets.example` (BACKEND_URL/TOKEN, CLIENT_ID, dispatcher-specific vars в отдельной секции)
-- [x] `Package.swift` skeleton (macOS 14 / iOS 17, voice library + voiceTests target)
-- [x] `Sources/voice/Backend/BackendAdapter.swift` — protocol, TranscribedRequest, Reply, BackendError
-- [x] `Sources/voice/Backend/DispatcherAdapter.swift` — skeleton (throws backendUnavailable, реализуется в v0.1)
-- [x] `Tests/voiceTests/PackageSanityTests.swift` — protocol reachable + Reply equality
+- [x] `Package.swift` (iOS 17 primary / macOS 14, VoiceAssistant library + VoiceAssistantTests target)
+- [x] `Sources/VoiceAssistant/Backend/BackendAdapter.swift` — protocol, TranscribedRequest, Reply, BackendError
+- [x] `Sources/VoiceAssistant/Backend/DispatcherAdapter.swift` — skeleton (throws backendUnavailable, реализуется в v0.1)
+- [x] `Tests/VoiceAssistantTests/PackageSanityTests.swift` — protocol reachable + Reply equality
 - [x] `specs/backend-protocol.md` — wire contract, self-contained
 - [x] `README.md` обновлён (adapter pattern, dispatcher как один из многих)
-- [x] git init + initial commit `ccf571b`
-- [ ] push в `flyer2001/voice` private (waiting — Sergey создаёт репо на github.com, после — `git remote add origin git@github-assistant:flyer2001/voice.git && git push -u origin main`)
+- [x] `scripts/setup-mac-home.sh` — brew + node + XcodeBuildMCP install (idempotent)
+- [x] `docs/mac-home-setup.md` — workflow split (client mac-home / backend VDS), MCP config snippet
+- [x] git init + initial commits (`ccf571b` foundation, `20a2ebc` TASKS.md)
+- [ ] push в `flyer2001/voice-assistant` private (waiting — Sergey создаёт репо на github.com, после: `git remote add origin git@github.com:flyer2001/voice-assistant.git && git push -u origin main`)
+
+### v0.0 mac-home prep (parallel — blocks v0.1 client tickets)
+
+- [!] Xcode 16+ install на mac-home (через App Store, ~30-60 мин). **Hard blocker** для v0.1 C-тикетов.
+- [ ] `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` после установки
+- [ ] Open Xcode once → accept license → download iOS platform support
+- [ ] Clone repo: `gh repo clone flyer2001/voice-assistant ~/projects/voice-assistant` (или git clone)
+- [ ] `./scripts/setup-mac-home.sh` (brew + gh + node + xcodebuildmcp)
+- [ ] `claude mcp add xcodebuild -- npx -y xcodebuildmcp` в repo dir, restart claude
+- [ ] First mac-home Claude session — seed reading: README.md → CLAUDE.md → docs/mac-home-setup.md → .claude/TESTING.md → .claude/TASKS.md → MEMORY.md
+- [ ] Spike: build empty iOS app target из Xcode, verify XcodeBuildMCP видит simulator
 
 ---
 
-## v0.1 — E2E на macOS (DoD: capture→reply ≤ 4с)
+## v0.1 PRE-REQ: Whisper location decision
+
+**Deferred 2026-06-07** — решается после бенчмарка. Влияет на specs/backend-protocol.md и client wire-format.
+
+- [ ] **W1**: Benchmark Whisper модели on-device (M-series Mac, iPhone) — `base` / `small` / `large-v3-turbo`. Метрики: latency на 5с/15с RU+EN, WER на known transcript.
+- [ ] **W2**: Benchmark Whisper модели server-side на win-home + mac-home (Whisper.cpp или MLX). Те же образцы, метрики + network overhead.
+- [ ] **W3**: Решение: on-device (VISION default) vs server-side. Если server-side — добавить `/v1/voice/audio` endpoint в specs (additive, не ломает v1).
+- [ ] **G0 (related)**: Gemini LLM role — отложено пока v0.1 не запущен. v0.3 candidate (intent classifier) ИЛИ post-STT rewrite. Решение не блокирует v0.1.
+
+---
+
+## v0.1 — E2E (DoD: capture→reply ≤ 4с)
+
+**Platform target:** iOS app, dev-run через "My Mac (Designed for iPad)" на mac-home + iOS simulator. Реальный iPhone для UX-валидации.
 
 ### Backend (VDS, отдельный Hummingbird service)
 
@@ -34,17 +60,19 @@
 - [ ] **B7**: systemd unit `voice-backend.service` — отдельный, не цепляется к cashflow-bot. Restart=on-failure, journal logs.
 - [ ] **B8**: Deploy на VDS — порт 8089, доступен через WireGuard (внутренний IP), public HTTPS — fallback (nginx reverse proxy).
 
-### Client (macOS menu bar app)
+### Client (iOS app, dev-tested on Mac)
 
-- [ ] **C1**: Xcode project `macOS/VoiceApp.xcodeproj` или SPM-based — определиться (SPM проще для shared логики, Xcode нужен только для bundle/Info.plist/entitlements). Решение в B1/C1 сессии.
-- [ ] **C2**: Menu bar app skeleton — NSStatusItem, popover на клик, иконка.
-- [ ] **C3**: Global hotkey `⌘⇧V` — hold-to-speak. **Research-first:** SwiftUI vs AppKit для global hotkey (Carbon HotKey API, или MASShortcut, или новый KeyEvent monitor). Failing test на hotkey-config layer.
-- [ ] **C4**: AVFoundation audio capture — `AVAudioEngine` + tap on inputNode, append в buffer пока hotkey held, stop on release. **Research-first:** sample rate, format (Float32 mono 16kHz для Whisper), microphone permission flow.
-- [ ] **C5**: WhisperKit integration — load `base` model on app launch (background), transcribe buffer on release. **Research-first:** WhisperKit API surface, model download flow, RU language hint.
+> Все C-тикеты блокированы пока на mac-home нет Xcode + XcodeBuildMCP (см. v0.0 mac-home prep).
+
+- [ ] **C1**: Xcode project `iOS/VoiceAssistant.xcodeproj` — iOS app target. SPM package `VoiceAssistant` подключён как local dep. Info.plist + `NSMicrophoneUsageDescription`.
+- [ ] **C2**: Main view skeleton — hold-to-speak full-screen button (SwiftUI). Press-and-hold gesture, visual feedback (waveform mock или просто colored state).
+- [ ] **C3**: Mac run target — "My Mac (Designed for iPad)" работает, hold-to-speak by mouse-down/mouse-up. Verify сборка собирается через XcodeBuildMCP.
+- [ ] **C4**: AVFoundation audio capture — `AVAudioEngine` + tap on inputNode, append в buffer пока gesture held, stop on release. **Research-first:** sample rate, format (Float32 mono 16kHz для Whisper), microphone permission flow на macOS Tahoe (15+) / iOS 17+.
+- [ ] **C5**: STT integration. **Зависит от W3 decision.** On-device → WhisperKit `base` модель load on launch (background). Server-side → upload audio multipart к новому endpoint. **Research-first:** WhisperKit API surface ИЛИ multipart upload + retry semantics.
 - [ ] **C6**: DispatcherAdapter — реальная реализация `send(_:)`. URLSession POST, парсинг response per spec, маппинг error codes в `BackendError`. **TDD:** URLProtocol mock, тестируем все error paths.
-- [ ] **C7**: Bubble UI — popover content: список последних 10 turn'ов (in-memory), text-only, scroll, auto-focus last.
+- [ ] **C7**: Bubble UI — список последних 10 turn'ов (in-memory), text-only, scroll, auto-focus last.
 - [ ] **C8**: Keychain storage для `BACKEND_TOKEN` — first-launch onboarding (prompt → write). **TDD:** Keychain abstraction `protocol TokenStore` + `KeychainTokenStore` + `InMemoryTokenStore` для тестов.
-- [ ] **C9**: Конфигурация через `secrets.local` (read at launch, override Keychain если файл есть — для dev convenience).
+- [ ] **C9**: Конфигурация через `secrets.local` (read at launch на Mac dev, override Keychain если файл есть — для dev convenience). На iPhone — только Keychain.
 
 ### Glue / observability
 

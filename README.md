@@ -1,4 +1,4 @@
-# voice
+# voice-assistant
 
 Push-to-talk → on-device STT → текст → backend → reply в bubble.
 
@@ -16,7 +16,9 @@ Push-to-talk → on-device STT → текст → backend → reply в bubble.
 - `.claude/TESTING.md` — TDD-стратегия (читать ДО первого теста)
 - `.claude/TASKS.md` — текущие задачи (создаётся при старте сессии)
 - `specs/backend-protocol.md` — wire-контракт клиент↔backend (адаптеро-нейтральный)
-- `Sources/voice/Backend/` — Swift package, `BackendAdapter` protocol + реализации
+- `Sources/VoiceAssistant/Backend/` — Swift package, `BackendAdapter` protocol + реализации
+- `scripts/setup-mac-home.sh` — one-shot dev environment setup for mac-home (Homebrew, gh, node, XcodeBuildMCP)
+- `docs/mac-home-setup.md` — split клиент (mac-home) / backend (VDS), MCP config snippets
 - `iOS/` — SwiftUI client (после v0.1 старта)
 - `macOS/` — SwiftUI menu bar app (v0.1 primary, см. MVP)
 - `backend/` — Hummingbird 2 endpoint на VDS (отдельный systemd unit)

@@ -1,5 +1,5 @@
 import Testing
-@testable import voice
+@testable import VoiceAssistant
 
 @Suite("Package sanity")
 struct PackageSanityTests {
