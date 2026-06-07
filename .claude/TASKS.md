@@ -18,8 +18,8 @@
 - [x] `README.md` обновлён (adapter pattern, dispatcher как один из многих)
 - [x] `scripts/setup-mac-home.sh` — brew + node + XcodeBuildMCP install (idempotent)
 - [x] `docs/mac-home-setup.md` — workflow split (client mac-home / backend VDS), MCP config snippet
-- [x] git init + initial commits (`ccf571b` foundation, `20a2ebc` TASKS.md)
-- [ ] push в `flyer2001/voice-assistant` private (waiting — Sergey создаёт репо на github.com, после: `git remote add origin git@github.com:flyer2001/voice-assistant.git && git push -u origin main`)
+- [x] git init + initial commits (`ccf571b` foundation, `20a2ebc` TASKS.md, `873b450` rename + mac-home setup)
+- [x] push в `flyer2001/voice-assistant` private (origin set, main -> main, 2026-06-07)
 
 ### v0.0 mac-home prep (parallel — blocks v0.1 client tickets)
 
