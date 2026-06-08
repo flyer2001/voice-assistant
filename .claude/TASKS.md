@@ -21,16 +21,23 @@
 - [x] git init + initial commits (`ccf571b` foundation, `20a2ebc` TASKS.md, `873b450` rename + mac-home setup)
 - [x] push в `flyer2001/voice-assistant` private (origin set, main -> main, 2026-06-07)
 
-### v0.0 mac-home prep (parallel — blocks v0.1 client tickets)
+### v0.0 mac-home prep — DONE 2026-06-08
 
-- [!] Xcode 16+ install на mac-home (через App Store, ~30-60 мин). **Hard blocker** для v0.1 C-тикетов.
-- [ ] `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` после установки
-- [ ] Open Xcode once → accept license → download iOS platform support
-- [ ] Clone repo: `gh repo clone flyer2001/voice-assistant ~/projects/voice-assistant` (или git clone)
-- [ ] `./scripts/setup-mac-home.sh` (brew + gh + node + xcodebuildmcp)
-- [ ] `claude mcp add xcodebuild -- npx -y xcodebuildmcp` в repo dir, restart claude
+- [x] Xcode 26.0.1 + iOS 26.0/18.5 simulators (license accepted, all platforms)
+- [x] DEVELOPER_DIR в `~/.zshrc:11` (per-user без sudo)
+- [x] Repo cloned: `~/projects/voice-assistant/`
+- [x] Toolchain: brew 5.1.11, node 24.10.0, npm 11.6.2, gh 2.83.0, git 2.39.5, Claude Code 2.1.144
+- [x] XcodeBuildMCP 2.6.2 installed (через VDS proxy — direct registry заблокирован ISP)
+- [x] MCP `xcodebuild` в `~/.claude.json` — args `["mcp"]` (без него v2.6+ не стартует)
+- [x] Network workaround: `claude-ufo` alias (WG 10.10.0.1:8388) + `~/.npmrc` proxy + SSH ProxyJump для github.com
+- [x] `claude-ufo /login` выполнен пользователем
+- [x] E2E verify: `swift build` 31.89s, `swift test` 2/2 ✓, `xcodebuildmcp mcp` server initialized
+
+### v0.1 client mac-home onboarding (TODO для следующей mac-home сессии)
+
 - [ ] First mac-home Claude session — seed reading: README.md → CLAUDE.md → docs/mac-home-setup.md → .claude/TESTING.md → .claude/TASKS.md → MEMORY.md
-- [ ] Spike: build empty iOS app target из Xcode, verify XcodeBuildMCP видит simulator
+- [ ] Spike: попросить mac-home Claude — `claude mcp list` (зависал у меня через SSH non-interactive, в реальной session должно работать). Verify xcodebuild + cupertino MCPs available
+- [ ] Spike: build empty iOS app target из Xcode через XcodeBuildMCP, verify simulator boots + screenshot работает
 
 ---
 
