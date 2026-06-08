@@ -1,43 +1,57 @@
 #!/usr/bin/env bash
 # voice-assistant — one-shot dev environment setup for mac-home.
 #
-# Prerequisite (manual, before running this script):
-#   1. Install Xcode from App Store (10+ GB download, requires Apple ID)
-#   2. Open Xcode once to accept license + install platform support
-#   3. Run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+# Idempotent: safe to re-run. Skips already-installed components.
 #
-# Then run this script:
+# Most of this is already installed on Sergey's mac-home as of 2026-06-08
+# (Xcode 26.0.1, brew, node, npm, gh, claude-code, xcodebuildmcp). This
+# script exists for fresh setups or as a sanity checklist.
+#
+# Network note: mac-home's ISP blocks several direct outbound paths
+# (registry.npmjs.org DNS, github.com:22, custom proxy ports). The script
+# assumes either:
+#   (a) the proxy chain in docs/mac-home-setup.md is already configured
+#       (HTTP_PROXY / HTTPS_PROXY in ~/.zshrc, ~/.npmrc, SSH ProxyJump),
+#   (b) or you're on a fresh network without those constraints.
+# It does NOT bootstrap the proxy chain — that's manual (creds local).
+#
+# Prerequisite (manual, before running this script):
+#   1. Install Xcode from App Store
+#   2. Open Xcode once → accept license → download iOS platform support
+#   3. Export DEVELOPER_DIR (recommended over `sudo xcode-select -s …`):
+#        echo 'export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer' >> ~/.zshrc
+#        source ~/.zshrc
+#
+# Then run:
 #   chmod +x scripts/setup-mac-home.sh
 #   ./scripts/setup-mac-home.sh
-#
-# Idempotent: safe to re-run. Skips already-installed components.
 
 set -euo pipefail
 
-log() { printf "\033[1;34m[setup]\033[0m %s\n" "$*"; }
+log()  { printf "\033[1;34m[setup]\033[0m %s\n" "$*"; }
+ok()   { printf "\033[1;32m[ok]\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[warn]\033[0m %s\n" "$*"; }
-err() { printf "\033[1;31m[err]\033[0m %s\n" "$*" >&2; }
+err()  { printf "\033[1;31m[err]\033[0m %s\n" "$*" >&2; }
 
-# ---- 0. Sanity: Xcode installed ----
+# ---- 0. Sanity: Xcode reachable ----
 
-if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
-    err "Xcode.app is not the active developer directory."
-    err "Install Xcode from App Store first, then run:"
-    err "  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
-    err "Currently selected: $(xcode-select -p 2>/dev/null || echo 'nothing')"
+if [ -z "${DEVELOPER_DIR:-}" ] && ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
+    err "Neither DEVELOPER_DIR is set nor xcode-select points at Xcode.app."
+    err "Set up Xcode first — see prerequisite block in this script."
     exit 1
 fi
 
-if ! xcodebuild -version >/dev/null 2>&1; then
+if xcodebuild -version >/dev/null 2>&1; then
+    ok "Xcode active: $(xcodebuild -version | head -1)"
+else
     err "xcodebuild not functional. Open Xcode.app once to finalize install."
     exit 1
 fi
 
-log "Xcode active: $(xcodebuild -version | head -1)"
-
-if ! xcrun simctl list devices available >/dev/null 2>&1; then
-    warn "simctl available but no simulators. iOS Simulator runtime may not be installed."
-    warn "In Xcode: Settings → Platforms → iOS → Get."
+if xcrun simctl list runtimes 2>/dev/null | grep -q iOS; then
+    ok "iOS simulator runtimes present"
+else
+    warn "No iOS simulator runtime found. Open Xcode → Settings → Platforms → iOS → Get."
 fi
 
 # ---- 1. Homebrew ----
@@ -46,7 +60,7 @@ if ! command -v brew >/dev/null 2>&1; then
     log "Installing Homebrew..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-    # Add brew to PATH for this shell + future shells (Apple Silicon)
+    # Add brew to PATH (Apple Silicon)
     if [ -d /opt/homebrew/bin ]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
         if ! grep -q 'brew shellenv' "${HOME}/.zprofile" 2>/dev/null; then
@@ -54,7 +68,7 @@ if ! command -v brew >/dev/null 2>&1; then
         fi
     fi
 else
-    log "Homebrew already installed: $(brew --version | head -1)"
+    ok "Homebrew: $(brew --version | head -1)"
 fi
 
 # ---- 2. CLI tools via brew ----
@@ -62,50 +76,68 @@ fi
 declare -a brew_tools=(gh node)
 for tool in "${brew_tools[@]}"; do
     if brew list "${tool}" >/dev/null 2>&1; then
-        log "${tool}: already installed"
+        ok "${tool}: $(${tool} --version 2>/dev/null | head -1)"
     else
         log "Installing ${tool}..."
         brew install "${tool}"
     fi
 done
 
-# ---- 3. XcodeBuildMCP (npm global) ----
+# ---- 3. Claude Code CLI ----
 
-if npm list -g --depth=0 2>/dev/null | grep -q xcodebuildmcp; then
-    log "XcodeBuildMCP: already installed"
+if command -v claude >/dev/null 2>&1; then
+    ok "Claude Code: $(claude --version 2>/dev/null | head -1)"
+else
+    log "Installing Claude Code..."
+    npm install -g @anthropic-ai/claude-code
+fi
+
+# ---- 4. XcodeBuildMCP ----
+
+if command -v xcodebuildmcp >/dev/null 2>&1; then
+    ok "XcodeBuildMCP: $(xcodebuildmcp --help 2>&1 | head -1 || echo present)"
 else
     log "Installing XcodeBuildMCP..."
     npm install -g xcodebuildmcp
 fi
 
-# ---- 4. Print MCP config snippet ----
+# ---- 5. Verify MCP config presence ----
+
+if [ -f "${HOME}/.claude.json" ] && command -v jq >/dev/null 2>&1; then
+    if jq -e '.mcpServers.xcodebuild' "${HOME}/.claude.json" >/dev/null 2>&1; then
+        args=$(jq -r '.mcpServers.xcodebuild.args // [] | join(" ")' "${HOME}/.claude.json")
+        if [[ "${args}" == *"mcp"* ]]; then
+            ok "MCP 'xcodebuild' registered with 'mcp' subcommand"
+        else
+            warn "MCP 'xcodebuild' present but args is '${args}' — should be [\"mcp\"]"
+            warn "Fix: jq '.mcpServers.xcodebuild.args = [\"mcp\"]' ~/.claude.json | sponge ~/.claude.json"
+        fi
+    else
+        warn "MCP 'xcodebuild' NOT registered. See docs/mac-home-setup.md → XcodeBuildMCP setup."
+    fi
+fi
+
+# ---- 6. Final pointer ----
 
 cat <<'EOF'
 
 ────────────────────────────────────────────────────────────
-✅ mac-home setup complete.
+✅ mac-home base toolchain verified.
 
-Next: add XcodeBuildMCP to Claude Code config.
+Next steps (if not done yet):
 
-In a Claude session running on mac-home (cd to voice-assistant repo first):
+  1. Network — set up VDS proxy chain (creds are local-only, NOT in repo):
+     - HTTP_PROXY/HTTPS_PROXY for claude (alias `claude-ufo` in ~/.zshrc)
+     - ~/.npmrc with proxy / https-proxy
+     - SSH ProxyJump for github.com in ~/.ssh/config
 
-  claude mcp add xcodebuild -- npx -y xcodebuildmcp
+     See docs/mac-home-setup.md → "Network constraint".
 
-OR edit ~/.claude.json manually and add under "mcpServers":
+  2. Login:
+       claude-ufo /login
 
-  "xcodebuild": {
-    "command": "npx",
-    "args": ["-y", "xcodebuildmcp"]
-  }
+  3. Start project session:
+       cd ~/projects/voice-assistant && claude-ufo
 
-Then restart Claude and verify:
-
-  claude mcp list
-
-If XcodeBuildMCP appears, you can now ask Claude to build, run tests,
-boot simulators, and capture screenshots.
-
-See docs/mac-home-setup.md for the full workflow split (client on
-mac-home, backend on VDS).
 ────────────────────────────────────────────────────────────
 EOF
