@@ -51,3 +51,12 @@ Thumbs.db
 # Tests output
 /tmp/test.log
 .coverage/
+
+# Benchmark assets — raw audio, derived files, large outputs
+assets/
+bench/results/*.csv
+bench/raw/
+bench/derived/
+
+# Generated Xcode project (regenerated from iOS/project.yml via xcodegen)
+iOS/VoiceAssistant.xcodeproj/

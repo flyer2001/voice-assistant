@@ -1,0 +1,70 @@
+name: VoiceAssistant
+options:
+  bundleIdPrefix: com.voiceassistant
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: ru
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""  # set via Xcode signing UI (personal team)
+    PRODUCT_BUNDLE_IDENTIFIER: com.voiceassistant.VoiceAssistant
+    TARGETED_DEVICE_FAMILY: "1"  # iPhone only for v0.1
+
+packages:
+  VoiceAssistant:
+    path: ../  # local SPM dep — корневой voice-assistant Package.swift
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: "0.9.0"
+
+targets:
+  VoiceAssistant:
+    type: application
+    platform: iOS
+    sources:
+      - path: VoiceAssistant
+        excludes:
+          - "**/.DS_Store"
+    resources:
+      - path: VoiceAssistant/Resources
+        optional: true
+    dependencies:
+      - package: VoiceAssistant
+        product: VoiceAssistant
+      - package: WhisperKit
+        product: WhisperKit
+    info:
+      path: VoiceAssistant/Info.plist
+      properties:
+        CFBundleDisplayName: Voice Assistant
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen:
+          UIColorName: ""
+        NSMicrophoneUsageDescription: "Распознавание голосовых команд (используется в release builds)"
+        NSSpeechRecognitionUsageDescription: "On-device распознавание речи для бенчмарка и production"
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        GENERATE_INFOPLIST_FILE: NO
+
+  VoiceAssistantTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoiceAssistantTests
+        optional: true
+    dependencies:
+      - target: VoiceAssistant
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VoiceAssistant.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VoiceAssistant"
