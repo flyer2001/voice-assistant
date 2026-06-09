@@ -103,11 +103,34 @@ final class BenchRunner: ObservableObject {
     private func bundleAudioFiles() -> [URL] {
         let bundle = Bundle.main
         var files: [URL] = []
+
+        // Strategy 1: subdirectory enumeration (group reference)
         for codec in ["clean", "gsm"] {
+            if let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: codec) {
+                files.append(contentsOf: urls)
+            }
             if let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: "audio/\(codec)") {
                 files.append(contentsOf: urls)
             }
         }
+
+        // Strategy 2: flat enumeration in case build phase flattened structure
+        if files.isEmpty, let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: nil) {
+            files.append(contentsOf: urls.filter { $0.lastPathComponent.contains("quiet") || $0.lastPathComponent.contains("noisy") })
+        }
+
+        // Diagnostic — what is actually in bundle resourceURL
+        if files.isEmpty, let resURL = bundle.resourceURL {
+            let walker = FileManager.default.enumerator(at: resURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+            log.info("Bundle resourceURL: \(resURL.path)")
+            var count = 0
+            while let item = walker?.nextObject() as? URL {
+                log.info("  bundle item: \(item.path)")
+                count += 1
+                if count > 30 { break }
+            }
+        }
+
         return files.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
