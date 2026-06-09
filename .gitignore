@@ -59,4 +59,4 @@ bench/raw/
 bench/derived/
 
 # Generated Xcode project (regenerated from iOS/project.yml via xcodegen)
-iOS/VoiceAssistant.xcodeproj/
+iOS/VoiceAssistantApp.xcodeproj/
