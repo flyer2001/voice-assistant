@@ -162,17 +162,17 @@ final class BenchRunner: ObservableObject {
             try await request.downloadAndInstall()
         }
         let audioFile = try AVAudioFile(forReading: url)
-        let analyzer = SpeechAnalyzer(
+        let analyzer = try await SpeechAnalyzer(
             inputAudioFile: audioFile,
             modules: [transcriber],
             finishAfterFile: true
         )
-        _ = analyzer
 
         var transcript = ""
         for try await result in transcriber.results {
             transcript += String(result.text.characters)
         }
+        _ = analyzer  // keep strong reference until results done
         return transcript
     }
 
@@ -186,17 +186,17 @@ final class BenchRunner: ObservableObject {
             try await request.downloadAndInstall()
         }
         let audioFile = try AVAudioFile(forReading: url)
-        let analyzer = SpeechAnalyzer(
+        let analyzer = try await SpeechAnalyzer(
             inputAudioFile: audioFile,
             modules: [transcriber],
             finishAfterFile: true
         )
-        _ = analyzer
 
         var transcript = ""
         for try await result in transcriber.results {
             transcript += String(result.text.characters)
         }
+        _ = analyzer  // keep strong reference until results done
         return transcript
     }
 
