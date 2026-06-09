@@ -7,7 +7,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/assets/bench"
-DST="$ROOT/iOS/VoiceAssistant/Resources/audio"
+# Audio in SPM library Resources/ → bundled via .process() in Package.swift
+# accessible via Bundle.module in VoiceAssistant target.
+DST="$ROOT/Sources/VoiceAssistant/Resources/audio"
 
 if [[ ! -d "$SRC/normalized" ]] || [[ ! -d "$SRC/gsm" ]]; then
   echo "ERR: assets/bench/normalized or gsm missing — run normalize-raw.sh + derive-gsm.sh first"

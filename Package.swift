@@ -13,7 +13,10 @@ let package = Package(
     targets: [
         .target(
             name: "VoiceAssistant",
-            path: "Sources/VoiceAssistant"
+            path: "Sources/VoiceAssistant",
+            resources: [
+                .process("Resources"),
+            ]
         ),
         .testTarget(
             name: "VoiceAssistantTests",

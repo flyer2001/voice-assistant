@@ -2,6 +2,7 @@ import Foundation
 import Speech
 import AVFoundation
 import os
+import VoiceAssistant
 
 private let log = Logger(subsystem: "com.voiceassistant.app.flyer2001", category: "bench")
 
@@ -101,30 +102,20 @@ final class BenchRunner: ObservableObject {
     // MARK: - Audio enumeration
 
     private func bundleAudioFiles() -> [URL] {
-        let bundle = Bundle.main
-        var files: [URL] = []
+        let files = BenchResources.allAudioFiles()
 
-        // With XcodeGen resources: path: clean + path: gsm, files end up flat in bundle root.
-        // They retain naming pattern <id>-<env>.wav (clean from clean/, noisy from gsm/).
-        if let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: nil) {
-            files = urls.filter { name in
-                let n = name.lastPathComponent.lowercased()
-                return n.contains("quiet") || n.contains("noisy")
-            }
-        }
-
-        if files.isEmpty, let resURL = bundle.resourceURL {
+        if files.isEmpty, let resURL = BenchResources.audioBundle.resourceURL {
             let walker = FileManager.default.enumerator(at: resURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-            log.info("DEBUG bundle resourceURL: \(resURL.path)")
+            log.info("DEBUG bundle.module resourceURL: \(resURL.path)")
             var count = 0
             while let item = walker?.nextObject() as? URL {
-                log.info("  DEBUG bundle: \(item.lastPathComponent)")
+                log.info("  DEBUG bundle.module: \(item.lastPathComponent)")
                 count += 1
                 if count > 40 { break }
             }
         }
 
-        return files.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return files
     }
 
     /// Filename-based codec detection: setup-resources.sh prepends "gsm-" to

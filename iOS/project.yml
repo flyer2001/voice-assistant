@@ -30,11 +30,8 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "Resources/**"
-    resources:
-      - path: VoiceAssistant/Resources/audio/clean
-        optional: true
-      - path: VoiceAssistant/Resources/audio/gsm
-        optional: true
+    # Resources now bundled через SPM library VoiceAssistant (Package.swift .process("Resources"))
+    # Accessible at runtime via VoiceAssistant.BenchResources.audioBundle / .allAudioFiles()
     dependencies:
       - package: VoiceAssistant
         product: VoiceAssistant

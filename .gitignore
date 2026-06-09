@@ -61,5 +61,6 @@ bench/derived/
 # Generated Xcode project (regenerated from iOS/project.yml via xcodegen)
 iOS/VoiceAssistantApp.xcodeproj/
 
-# Bundled audio resources (copied from assets/bench/ via iOS/setup-resources.sh)
+# Bundled audio resources — копируются в SPM library Sources/ через iOS/setup-resources.sh
+Sources/VoiceAssistant/Resources/audio/
 iOS/VoiceAssistant/Resources/audio/
