@@ -10,7 +10,7 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: ""  # set via Xcode signing UI (personal team)
+    DEVELOPMENT_TEAM: "V729HQ39RD"  # Personal Team — flyer2001@isnet.ru
     PRODUCT_BUNDLE_IDENTIFIER: com.voiceassistant.app
     TARGETED_DEVICE_FAMILY: "1"  # iPhone only for v0.1
 
