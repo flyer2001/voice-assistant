@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: "V729HQ39RD"  # Personal Team — flyer2001@isnet.ru
-    PRODUCT_BUNDLE_IDENTIFIER: com.voiceassistant.app
+    PRODUCT_BUNDLE_IDENTIFIER: com.voiceassistant.app.flyer2001
     TARGETED_DEVICE_FAMILY: "1"  # iPhone only for v0.1
 
 packages:
