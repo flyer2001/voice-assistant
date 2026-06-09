@@ -32,8 +32,8 @@ targets:
           - "Resources/**"
     resources:
       - path: VoiceAssistant/Resources/audio
+        type: folder
         optional: true
-        buildPhase: resources
     dependencies:
       - package: VoiceAssistant
         product: VoiceAssistant
