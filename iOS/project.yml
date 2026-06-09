@@ -29,8 +29,10 @@ targets:
       - path: VoiceAssistant
         excludes:
           - "**/.DS_Store"
+          - "Resources/**"
     resources:
       - path: VoiceAssistant/Resources
+        type: folder
         optional: true
     dependencies:
       - package: VoiceAssistant
