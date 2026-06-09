@@ -69,7 +69,7 @@ final class BenchRunner: ObservableObject {
             await appendUI("\n--- \(modelName) ---")
             for url in files {
                 for run in 1...runsPerFile {
-                    let codec = url.path.contains("/gsm/") ? "gsm" : "clean"
+                    let codec = inferCodec(from: url)
                     let filename = url.lastPathComponent
 
                     let t0 = Date()
@@ -104,34 +104,33 @@ final class BenchRunner: ObservableObject {
         let bundle = Bundle.main
         var files: [URL] = []
 
-        // Strategy 1: subdirectory enumeration (group reference)
-        for codec in ["clean", "gsm"] {
-            if let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: codec) {
-                files.append(contentsOf: urls)
-            }
-            if let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: "audio/\(codec)") {
-                files.append(contentsOf: urls)
+        // With XcodeGen resources: path: clean + path: gsm, files end up flat in bundle root.
+        // They retain naming pattern <id>-<env>.wav (clean from clean/, noisy from gsm/).
+        if let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: nil) {
+            files = urls.filter { name in
+                let n = name.lastPathComponent.lowercased()
+                return n.contains("quiet") || n.contains("noisy")
             }
         }
 
-        // Strategy 2: flat enumeration in case build phase flattened structure
-        if files.isEmpty, let urls = bundle.urls(forResourcesWithExtension: "wav", subdirectory: nil) {
-            files.append(contentsOf: urls.filter { $0.lastPathComponent.contains("quiet") || $0.lastPathComponent.contains("noisy") })
-        }
-
-        // Diagnostic — what is actually in bundle resourceURL
         if files.isEmpty, let resURL = bundle.resourceURL {
             let walker = FileManager.default.enumerator(at: resURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-            log.info("Bundle resourceURL: \(resURL.path)")
+            log.info("DEBUG bundle resourceURL: \(resURL.path)")
             var count = 0
             while let item = walker?.nextObject() as? URL {
-                log.info("  bundle item: \(item.path)")
+                log.info("  DEBUG bundle: \(item.lastPathComponent)")
                 count += 1
-                if count > 30 { break }
+                if count > 40 { break }
             }
         }
 
         return files.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Filename-based codec detection: setup-resources.sh prepends "gsm-" to
+    /// GSM-degraded WAVs so they don't collide with clean variants in bundle root.
+    private func inferCodec(from url: URL) -> String {
+        return url.lastPathComponent.hasPrefix("gsm-") ? "gsm" : "clean"
     }
 
     // MARK: - Speech auth

@@ -15,8 +15,14 @@ if [[ ! -d "$SRC/normalized" ]] || [[ ! -d "$SRC/gsm" ]]; then
 fi
 
 mkdir -p "$DST/clean" "$DST/gsm"
-cp "$SRC/normalized"/*.wav "$DST/clean/"
-cp "$SRC/gsm"/*.wav "$DST/gsm/"
+# Rename gsm files с prefix чтоб избежать name collision когда XcodeGen
+# flattens hierarchy в bundle root (clean/1a-quiet.wav vs gsm/1a-quiet.wav).
+for f in "$SRC/normalized"/*.wav; do
+  cp "$f" "$DST/clean/$(basename "$f")"
+done
+for f in "$SRC/gsm"/*.wav; do
+  cp "$f" "$DST/gsm/gsm-$(basename "$f")"
+done
 
 echo "Copied to $DST:"
 echo "  clean: $(ls "$DST/clean" | wc -l)"

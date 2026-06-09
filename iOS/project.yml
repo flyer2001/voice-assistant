@@ -31,8 +31,9 @@ targets:
           - "**/.DS_Store"
           - "Resources/**"
     resources:
-      - path: VoiceAssistant/Resources/audio
-        type: folder
+      - path: VoiceAssistant/Resources/audio/clean
+        optional: true
+      - path: VoiceAssistant/Resources/audio/gsm
         optional: true
     dependencies:
       - package: VoiceAssistant
