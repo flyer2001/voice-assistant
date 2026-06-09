@@ -156,34 +156,47 @@ final class BenchRunner: ObservableObject {
     private func transcribeSpeechTranscriber(_ url: URL) async throws -> String {
         let transcriber = SpeechTranscriber(
             locale: Locale(identifier: language),
-            preset: .offlineTranscription
+            preset: .transcription
         )
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
-
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+            try await request.downloadAndInstall()
+        }
         let audioFile = try AVAudioFile(forReading: url)
-        try await analyzer.start(inputAudioFile: audioFile)
+        let analyzer = SpeechAnalyzer(
+            inputAudioFile: audioFile,
+            modules: [transcriber],
+            finishAfterFile: true
+        )
+        _ = analyzer
 
         var transcript = ""
         for try await result in transcriber.results {
-            transcript += result.text.description
+            transcript += String(result.text.characters)
         }
-        try await analyzer.finalizeAndFinishThroughEndOfInput()
         return transcript
     }
 
     @available(iOS 26.0, *)
     private func transcribeDictation(_ url: URL) async throws -> String {
-        let transcriber = DictationTranscriber(locale: Locale(identifier: language))
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
-
+        let transcriber = DictationTranscriber(
+            locale: Locale(identifier: language),
+            preset: .longDictation
+        )
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+            try await request.downloadAndInstall()
+        }
         let audioFile = try AVAudioFile(forReading: url)
-        try await analyzer.start(inputAudioFile: audioFile)
+        let analyzer = SpeechAnalyzer(
+            inputAudioFile: audioFile,
+            modules: [transcriber],
+            finishAfterFile: true
+        )
+        _ = analyzer
 
         var transcript = ""
         for try await result in transcriber.results {
-            transcript += result.text.description
+            transcript += String(result.text.characters)
         }
-        try await analyzer.finalizeAndFinishThroughEndOfInput()
         return transcript
     }
 
