@@ -67,3 +67,4 @@ iOS/VoiceAssistantApp.xcodeproj/
 # Bundled audio resources — копируются в SPM library Sources/ через iOS/setup-resources.sh
 Sources/VoiceAssistant/Resources/audio/
 iOS/VoiceAssistant/Resources/audio/
+bench/scripts/__pycache__/
