@@ -54,33 +54,18 @@ final class BenchRunner: ObservableObject {
         try? header.write(to: csvURL, atomically: true, encoding: .utf8)
         log.info("CSV at: \(self.csvURL.path)")
 
-        // V2 — Apple stack + WhisperKit on-device
-        // Pre-load WhisperKit pipelines (slow cold start, do once)
+        // V3 — WhisperKit base ONLY (Apple stack уже прогнан в V2 run, sergey'я iPhone 13 mini
+        // 4GB RAM не тянет WhisperKit small + Apple stack одновременно — OOM crash).
         log.info("Loading WhisperKit base...")
         await appendUI("Loading WhisperKit base...")
         let wkBase = await loadWhisperKit(modelName: "openai_whisper-base")
         log.info("WhisperKit base loaded: \(wkBase != nil)")
         await appendUI("WhisperKit base: \(wkBase != nil ? "✓" : "✗")")
 
-        log.info("Loading WhisperKit small...")
-        await appendUI("Loading WhisperKit small...")
-        let wkSmall = await loadWhisperKit(modelName: "openai_whisper-small")
-        log.info("WhisperKit small loaded: \(wkSmall != nil)")
-        await appendUI("WhisperKit small: \(wkSmall != nil ? "✓" : "✗")")
-
         let candidates: [(String, (URL) async throws -> String)] = {
-            var c: [(String, (URL) async throws -> String)] = [
-                ("sf-speech-recognizer", { url in try await self.transcribeSFSpeech(url) }),
-            ]
-            if #available(iOS 26.0, *) {
-                c.append(("dictation-transcriber", { url in try await self.transcribeDictation(url) }))
-                c.append(("speech-transcriber", { url in try await self.transcribeSpeechTranscriber(url) }))
-            }
+            var c: [(String, (URL) async throws -> String)] = []
             if let wk = wkBase {
                 c.append(("whisperkit-base", { url in try await self.transcribeWhisperKit(wk, url: url) }))
-            }
-            if let wk = wkSmall {
-                c.append(("whisperkit-small", { url in try await self.transcribeWhisperKit(wk, url: url) }))
             }
             return c
         }()
