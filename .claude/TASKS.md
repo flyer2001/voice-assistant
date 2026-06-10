@@ -41,14 +41,16 @@
 
 ---
 
-## v0.1 PRE-REQ: Whisper location decision
+## v0.1 PRE-REQ: STT location decision — RESOLVED 2026-06-10
 
-**Deferred 2026-06-07** — решается после бенчмарка. Влияет на specs/backend-protocol.md и client wire-format.
+Бенчмарк закрыт. См. `bench/results/REPORT-2026-06-10.md`.
 
-- [ ] **W1**: Benchmark Whisper модели on-device (M-series Mac, iPhone) — `base` / `small` / `large-v3-turbo`. Метрики: latency на 5с/15с RU+EN, WER на known transcript.
-- [ ] **W2**: Benchmark Whisper модели server-side на win-home + mac-home (Whisper.cpp или MLX). Те же образцы, метрики + network overhead.
-- [ ] **W3**: Решение: on-device (VISION default) vs server-side. Если server-side — добавить `/v1/voice/audio` endpoint в specs (additive, не ломает v1).
+- [x] **W1**: On-device бенч. **iPhone 13 mini iOS 26.5:** Apple DictationTranscriber WER 50% / Term 29% / 1166ms (winner). SFSpeechRecognizer WER 84% (fail). SpeechTranscriber 100% WER (broken — debug отложен). WhisperKit на iPhone — отложен (V2, нужен pre-download через VDS proxy).
+- [x] **W2**: Server-side бенч. **Whisper large-v3-turbo на Win-CUDA (RTX 3070): WER 30% / Term 77% / 447ms (RTF 0.03, 33× realtime).** Cross-validation на Mac-Metal даёт identical WER ±2%. Win-CUDA в 3.4× быстрее Mac-Metal.
+- [x] **W3**: **Решение — гибрид. Primary: server-side через Win-CUDA Whisper turbo (POST /v1/voice/audio multipart, добавляем в specs/backend-protocol.md v2). Fallback offline: on-device Apple DictationTranscriber + fuzzy intent matcher.** SFSpeechRecognizer не используем (legacy + лимит 15s + 2% term acc).
+- [x] **HYP-045** (voice IVR через GSM) bonus result: ΔWER (clean → GSM 06.10) для turbo/dictation = +0.6 — +1.6% 🟢 (threshold был >15%). Voice IVR PoC жив — можно делать.
 - [ ] **G0 (related)**: Gemini LLM role — отложено пока v0.1 не запущен. v0.3 candidate (intent classifier) ИЛИ post-STT rewrite. Решение не блокирует v0.1.
+- [ ] **W4 (deferred follow-ups)**: SpeechTranscriber debug (почему empty в iOS 26.5); WhisperKit on iPhone V2; Gemma 3n E2B audio bench; numbers/versions post-STT regex (+15pp WER quick win на Set 4).
 
 ---
 
