@@ -37,6 +37,56 @@ except ImportError:
 PUNCT_PATTERN = re.compile(r'[.,!?:;—\-«»"\'`()\[\]{}]')
 WHITESPACE_PATTERN = re.compile(r'\s+')
 
+# Spoken digit sequences (RU + EN) — для voice-assistant text normalization.
+# Mirrors Sources/VoiceAssistant/TextNormalization.swift.
+RU_DIGITS = {
+    "ноль": "0", "один": "1", "одна": "1", "одно": "1",
+    "два": "2", "две": "2", "три": "3", "четыре": "4", "пять": "5",
+    "шесть": "6", "семь": "7", "восемь": "8", "девять": "9", "десять": "10",
+}
+EN_DIGITS = {
+    "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+    "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+}
+DOTTED_PATTERN = re.compile(r'\d+(?:\s*\.\s*\d+)+')
+
+
+def _convert_spoken_digits(text: str, digits_map: dict, separator: str) -> str:
+    tokens = text.split()
+    out = []
+    i = 0
+    while i < len(tokens):
+        word = tokens[i].lower().strip(".,!?:;«»\"'()[]{}")
+        if word in digits_map:
+            seq = [digits_map[word]]
+            j = i + 1
+            while j + 1 < len(tokens):
+                sep = tokens[j].lower().strip(".,!?:;«»\"'()[]{}")
+                nxt = tokens[j + 1].lower().strip(".,!?:;«»\"'()[]{}")
+                if sep == separator and nxt in digits_map:
+                    seq.append(digits_map[nxt])
+                    j += 2
+                else:
+                    break
+            if len(seq) >= 2:
+                out.append(".".join(seq))
+                i = j
+                continue
+        out.append(tokens[i])
+        i += 1
+    return " ".join(out)
+
+
+def text_normalization_pipeline(text: str) -> str:
+    """Post-STT normalization: convert spoken digit chains + collapse spaced dots."""
+    text = _convert_spoken_digits(text, RU_DIGITS, "точка")
+    text = _convert_spoken_digits(text, EN_DIGITS, "dot")
+    # Collapse "0 . 8 . 3" → "0.8.3" — match whole sequence, strip internal spaces around dots
+    def _collapse(m):
+        return re.sub(r'\s*\.\s*', '.', m.group(0))
+    text = DOTTED_PATTERN.sub(_collapse, text)
+    return text
+
 
 def normalize_text(s: str) -> str:
     """Unicode NFC + lowercase + strip punct + collapse spaces. For WER scoring."""
@@ -97,7 +147,10 @@ def compute_per_row(row: dict, ground_truth: dict) -> dict:
 
     model_text = row.get("text", "")
     ref_normalized = gt["normalized"]
-    hyp_normalized = normalize_text(model_text)
+    # Apply post-STT numbers normalization для completeness (Whisper/Apple Speech уже
+    # выдают digits сами, но cloud STT иногда возвращает spelled-out; на этом корпусе Δ=0).
+    hyp_with_numfix = text_normalization_pipeline(model_text)
+    hyp_normalized = normalize_text(hyp_with_numfix)
 
     enriched = dict(row)
     enriched["wer"] = jiwer.wer(ref_normalized, hyp_normalized) if hyp_normalized else 1.0
