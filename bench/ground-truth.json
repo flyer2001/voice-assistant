@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "schema": "voice-bench-ground-truth",
+  "generated_at": "2026-06-09",
+  "description": "Ground truth для STT бенчмарка (Whisper / Gemma / Apple Speech). Соответствует docs/whisper-benchmark-plan.md.",
+  "normalization_rules": {
+    "lowercase": true,
+    "unicode": "NFC",
+    "strip_punctuation": "all (.,!?:;—-«»\"')",
+    "numbers": "spoken Russian/English digit phrases collapsed to digits with dots (e.g. 'ноль точка восемь точка три' → '0.8.3', 'zero dot eight dot three' → '0.8.3')",
+    "whitespace": "collapse multiple spaces to single"
+  },
+  "anglicism_matching": "For Term Accuracy: each anglicism is correct if model output contains ANY form from anglicism_aliases[term]. Case-insensitive, substring match after normalize.",
+  "texts": {
+    "1a": {
+      "set": "clean-russian",
+      "duration_target_s": 5,
+      "transcript": "Сегодня вторник, нужно успеть в магазин — купить молоко, хлеб, помидоры и заехать на заправку.",
+      "normalized": "сегодня вторник нужно успеть в магазин купить молоко хлеб помидоры и заехать на заправку",
+      "anglicisms": [],
+      "anglicism_aliases": {},
+      "numbers": []
+    },
+    "1b": {
+      "set": "clean-russian",
+      "duration_target_s": 15,
+      "transcript": "Сегодня вторник, к вечеру обещают дождь, поэтому нужно успеть в магазин, купить молоко, хлеб, помидоры, заехать на заправку, забрать сына с тренировки около семи и не забыть позвонить маме на обратной дороге.",
+      "normalized": "сегодня вторник к вечеру обещают дождь поэтому нужно успеть в магазин купить молоко хлеб помидоры заехать на заправку забрать сына с тренировки около семи и не забыть позвонить маме на обратной дороге",
+      "anglicisms": [],
+      "anglicism_aliases": {},
+      "numbers": ["7"],
+      "numbers_aliases": {
+        "7": ["семи", "семь", "7"]
+      }
+    },
+    "2a": {
+      "set": "ru-en-dev-commands",
+      "duration_target_s": 5,
+      "transcript": "Запушь ветку feature auth в GitHub и открой pull request на ревью.",
+      "normalized": "запушь ветку feature auth в github и открой pull request на ревью",
+      "anglicisms": ["feature", "auth", "github", "pull request"],
+      "anglicism_aliases": {
+        "feature": ["feature", "фича", "фичу", "фичер"],
+        "auth": ["auth", "аус", "аут", "аутх", "оуф"],
+        "github": ["github", "гитхаб", "git hub", "гит хаб"],
+        "pull request": ["pull request", "pull-request", "пулл реквест", "пул реквест", "пуллреквест", "пулреквест"]
+      },
+      "numbers": []
+    },
+    "2b": {
+      "set": "ru-en-dev-commands",
+      "duration_target_s": 15,
+      "transcript": "Запушь текущую ветку feature-auth в GitHub, открой pull request на main, добавь Сергея в ревьюверы, и проверь что прошли все CI чеки перед мёрджем — линт, юнит-тесты и тайп-чек.",
+      "normalized": "запушь текущую ветку feature-auth в github открой pull request на main добавь сергея в ревьюверы и проверь что прошли все ci чеки перед мёрджем линт юнит-тесты и тайп-чек",
+      "anglicisms": ["feature-auth", "github", "pull request", "main", "ci", "линт", "юнит-тесты", "тайп-чек", "мёрдж"],
+      "anglicism_aliases": {
+        "feature-auth": ["feature-auth", "feature auth", "feature-аус", "фича аутх", "фича аус", "фичер аус"],
+        "github": ["github", "гитхаб", "git hub", "гит хаб"],
+        "pull request": ["pull request", "pull-request", "пулл реквест", "пул реквест", "пуллреквест"],
+        "main": ["main", "майн", "мэйн", "мейн"],
+        "ci": ["ci", "си ай", "сиай", "c.i.", "си-ай"],
+        "линт": ["линт", "lint"],
+        "юнит-тесты": ["юнит-тесты", "юнит тесты", "unit tests", "unit-tests"],
+        "тайп-чек": ["тайп-чек", "тайп чек", "type check", "type-check", "тайпчек"],
+        "мёрдж": ["мёрдж", "мердж", "merge", "мердже", "мёрдже"]
+      },
+      "numbers": []
+    },
+    "3a": {
+      "set": "observability",
+      "duration_target_s": 5,
+      "transcript": "Открой дашборд api-latency в Grafana и покажи пятый процентиль.",
+      "normalized": "открой дашборд api-latency в grafana и покажи пятый процентиль",
+      "anglicisms": ["дашборд", "api-latency", "grafana"],
+      "anglicism_aliases": {
+        "дашборд": ["дашборд", "dashboard", "даш борд"],
+        "api-latency": ["api-latency", "api latency", "апи латенси", "апи лэйтенси", "апи-латенси", "ари латенси"],
+        "grafana": ["grafana", "графана", "графан"]
+      },
+      "numbers": ["5"],
+      "numbers_aliases": {
+        "5": ["пятый", "5", "5-й"]
+      }
+    },
+    "3b": {
+      "set": "observability",
+      "duration_target_s": 15,
+      "transcript": "Открой дашборд api-latency в Grafana за последний час, посмотри есть ли всплески по пятому процентилю, если есть — открой логи пода auth-service в staging кластере и пришли мне трейс ошибки.",
+      "normalized": "открой дашборд api-latency в grafana за последний час посмотри есть ли всплески по пятому процентилю если есть открой логи пода auth-service в staging кластере и пришли мне трейс ошибки",
+      "anglicisms": ["дашборд", "api-latency", "grafana", "пода", "auth-service", "staging", "кластере", "трейс"],
+      "anglicism_aliases": {
+        "дашборд": ["дашборд", "dashboard"],
+        "api-latency": ["api-latency", "api latency", "апи латенси", "апи лэйтенси"],
+        "grafana": ["grafana", "графана"],
+        "пода": ["пода", "под", "pod"],
+        "auth-service": ["auth-service", "auth service", "аут сервис", "аус сервис", "оуф сервис", "auth-сервис"],
+        "staging": ["staging", "стейджинг", "стейдж", "стэйджинг"],
+        "кластере": ["кластере", "кластер", "cluster"],
+        "трейс": ["трейс", "trace", "трэйс"]
+      },
+      "numbers": ["5"],
+      "numbers_aliases": {
+        "5": ["пятому", "пятый", "5", "5-му"]
+      }
+    },
+    "4a": {
+      "set": "numbers-versions",
+      "duration_target_s": 5,
+      "transcript": "Обнови WhisperKit до версии ноль точка восемь точка три.",
+      "normalized": "обнови whisperkit до версии 0.8.3",
+      "anglicisms": ["whisperkit"],
+      "anglicism_aliases": {
+        "whisperkit": ["whisperkit", "whisper kit", "виспер кит", "висперкит", "wisperkit", "whisper-kit"]
+      },
+      "numbers": ["0.8.3"],
+      "numbers_aliases": {
+        "0.8.3": [
+          "0.8.3",
+          "ноль точка восемь точка три",
+          "0 точка 8 точка 3",
+          "zero dot eight dot three"
+        ]
+      }
+    },
+    "4b": {
+      "set": "numbers-versions",
+      "duration_target_s": 15,
+      "transcript": "В Package.swift обнови WhisperKit до версии ноль точка восемь точка три, перезапусти build через swift build, и если зелёный — закомить с сообщением update WhisperKit to zero dot eight dot three.",
+      "normalized": "в package.swift обнови whisperkit до версии 0.8.3 перезапусти build через swift build и если зелёный закомить с сообщением update whisperkit to 0.8.3",
+      "anglicisms": ["package.swift", "whisperkit", "build", "swift build", "update", "to"],
+      "anglicism_aliases": {
+        "package.swift": ["package.swift", "package swift", "пакедж свифт", "пакэдж.свифт", "package-swift"],
+        "whisperkit": ["whisperkit", "whisper kit", "виспер кит", "висперкит"],
+        "build": ["build", "билд"],
+        "swift build": ["swift build", "свифт билд"],
+        "update": ["update", "апдейт"],
+        "to": ["to", "ту"]
+      },
+      "numbers": ["0.8.3"],
+      "numbers_aliases": {
+        "0.8.3": [
+          "0.8.3",
+          "ноль точка восемь точка три",
+          "zero dot eight dot three",
+          "0 dot 8 dot 3"
+        ]
+      },
+      "notes": "Появляется два раза: один раз русской диктовкой ('ноль точка восемь точка три'), второй раз английской ('zero dot eight dot three'). Оба должны нормализоваться в '0.8.3'. Если модель выдаст '0.8.3' где-то посреди в normalized — оба instance считаются correct."
+    }
+  }
+}

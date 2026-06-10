@@ -54,7 +54,10 @@ Thumbs.db
 
 # Benchmark assets — raw audio, derived files, large outputs
 assets/
+bench/.venv/
 bench/results/*.csv
+bench/results/mac/
+bench/results/win/
 bench/raw/
 bench/derived/
 
