@@ -38,9 +38,9 @@ from monitor import HardwareMonitor  # noqa: E402
 
 try:
     import torch
-    from transformers import AutoProcessor, AutoModelForCausalLM
+    from transformers import AutoProcessor, AutoModelForImageTextToText
 except ImportError as e:
-    print(f"ERR: {e}. Install: pip install torch transformers accelerate", file=sys.stderr)
+    print(f"ERR: {e}. Install: pip install torch transformers accelerate Pillow", file=sys.stderr)
     sys.exit(1)
 
 try:
@@ -100,7 +100,7 @@ def main():
     t_load = time.monotonic()
     with HardwareMonitor(interval_s=0.5) as load_mon:
         processor = AutoProcessor.from_pretrained(args.model, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForImageTextToText.from_pretrained(
             args.model,
             torch_dtype=dtype,
             device_map=device,
@@ -112,11 +112,28 @@ def main():
     print(f"  loaded in {load_ms:.0f} ms, peak RAM {load_metrics.get('ram_peak_mb', 0):.0f} MB"
           + (f", peak VRAM {load_metrics.get('vram_peak_mb', 0):.0f} MB" if load_metrics.get("vram_peak_mb") else ""))
 
+    def build_inputs(audio_arr):
+        """Use chat template — auto-inserts audio placeholder tokens for Gemma 3n."""
+        messages = [{
+            "role": "user",
+            "content": [
+                {"type": "audio", "audio": audio_arr},
+                {"type": "text", "text": ASR_PROMPT_RU},
+            ],
+        }]
+        return processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(device)
+
     # Warm-up на первом файле
     print("Warm-up on", wav_files[0].name, "...")
     audio, _ = load_audio(wav_files[0])
     with torch.no_grad():
-        inputs = processor(text=ASR_PROMPT_RU, audio=audio, return_tensors="pt").to(device)
+        inputs = build_inputs(audio)
         _ = model.generate(**inputs, max_new_tokens=200, do_sample=False)
 
     out_path = Path(args.output)
@@ -142,9 +159,11 @@ def main():
                 with HardwareMonitor(interval_s=0.5) as mon:
                     t0 = time.monotonic()
                     with torch.no_grad():
-                        inputs = processor(text=ASR_PROMPT_RU, audio=audio, return_tensors="pt").to(device)
+                        inputs = build_inputs(audio)
+                        input_len = inputs["input_ids"].shape[1] if "input_ids" in inputs else 0
                         output_ids = model.generate(**inputs, max_new_tokens=200, do_sample=False)
-                        text = processor.decode(output_ids[0], skip_special_tokens=True)
+                        # Strip the prompt — only decode the generated suffix
+                        text = processor.decode(output_ids[0][input_len:], skip_special_tokens=True)
                     latency_ms = (time.monotonic() - t0) * 1000
 
                 # Strip the prompt prefix from text if present
