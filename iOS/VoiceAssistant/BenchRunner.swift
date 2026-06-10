@@ -3,6 +3,7 @@ import Speech
 import AVFoundation
 import os
 import VoiceAssistant
+import WhisperKit
 
 private let log = Logger(subsystem: "com.voiceassistant.app.flyer2001", category: "bench")
 
@@ -53,7 +54,20 @@ final class BenchRunner: ObservableObject {
         try? header.write(to: csvURL, atomically: true, encoding: .utf8)
         log.info("CSV at: \(self.csvURL.path)")
 
-        // V1 — Apple stack
+        // V2 — Apple stack + WhisperKit on-device
+        // Pre-load WhisperKit pipelines (slow cold start, do once)
+        log.info("Loading WhisperKit base...")
+        await appendUI("Loading WhisperKit base...")
+        let wkBase = await loadWhisperKit(modelName: "openai_whisper-base")
+        log.info("WhisperKit base loaded: \(wkBase != nil)")
+        await appendUI("WhisperKit base: \(wkBase != nil ? "✓" : "✗")")
+
+        log.info("Loading WhisperKit small...")
+        await appendUI("Loading WhisperKit small...")
+        let wkSmall = await loadWhisperKit(modelName: "openai_whisper-small")
+        log.info("WhisperKit small loaded: \(wkSmall != nil)")
+        await appendUI("WhisperKit small: \(wkSmall != nil ? "✓" : "✗")")
+
         let candidates: [(String, (URL) async throws -> String)] = {
             var c: [(String, (URL) async throws -> String)] = [
                 ("sf-speech-recognizer", { url in try await self.transcribeSFSpeech(url) }),
@@ -61,6 +75,12 @@ final class BenchRunner: ObservableObject {
             if #available(iOS 26.0, *) {
                 c.append(("dictation-transcriber", { url in try await self.transcribeDictation(url) }))
                 c.append(("speech-transcriber", { url in try await self.transcribeSpeechTranscriber(url) }))
+            }
+            if let wk = wkBase {
+                c.append(("whisperkit-base", { url in try await self.transcribeWhisperKit(wk, url: url) }))
+            }
+            if let wk = wkSmall {
+                c.append(("whisperkit-small", { url in try await self.transcribeWhisperKit(wk, url: url) }))
             }
             return c
         }()
@@ -187,6 +207,44 @@ final class BenchRunner: ObservableObject {
         }
         _ = analyzer  // keep strong reference until results done
         return transcript
+    }
+
+    // MARK: - WhisperKit (CoreML on Apple Neural Engine)
+
+    /// Load WhisperKit pipeline from bundled CoreML model folder.
+    /// Returns nil on failure (logged). With .copy("Resources/whisperkit") in Package.swift,
+    /// the folder is preserved as `<bundle>/whisperkit/<modelName>/` with .mlmodelc subdirs.
+    private func loadWhisperKit(modelName: String) async -> WhisperKit? {
+        let bundle = BenchResources.audioBundle
+        let modelURL = bundle.bundleURL
+            .appendingPathComponent("whisperkit", isDirectory: true)
+            .appendingPathComponent(modelName, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: modelURL.path) else {
+            log.error("WhisperKit \(modelName): folder not found at \(modelURL.path)")
+            return nil
+        }
+        do {
+            let config = WhisperKitConfig(modelFolder: modelURL.path)
+            return try await WhisperKit(config)
+        } catch {
+            log.error("WhisperKit \(modelName) init failed: \(error)")
+            return nil
+        }
+    }
+
+    private func transcribeWhisperKit(_ whisperKit: WhisperKit, url: URL) async throws -> String {
+        let opts = DecodingOptions(
+            language: "ru",
+            temperature: 0.0,
+            sampleLength: 224,
+            skipSpecialTokens: true,
+            withoutTimestamps: true
+        )
+        let results = try await whisperKit.transcribe(
+            audioPath: url.path,
+            decodeOptions: opts
+        )
+        return results.map { $0.text }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @available(iOS 26.0, *)

@@ -15,7 +15,8 @@ let package = Package(
             name: "VoiceAssistant",
             path: "Sources/VoiceAssistant",
             resources: [
-                .process("Resources"),
+                .process("Resources/audio"),
+                .copy("Resources/whisperkit"),
             ]
         ),
         .testTarget(
