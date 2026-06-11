@@ -50,7 +50,11 @@
 - [x] **W3**: **Решение — гибрид. Primary: server-side через Win-CUDA Whisper turbo (POST /v1/voice/audio multipart, добавляем в specs/backend-protocol.md v2). Fallback offline: on-device Apple DictationTranscriber + fuzzy intent matcher.** SFSpeechRecognizer не используем (legacy + лимит 15s + 2% term acc).
 - [x] **HYP-045** (voice IVR через GSM) bonus result: ΔWER (clean → GSM 06.10) для turbo/dictation = +0.6 — +1.6% 🟢 (threshold был >15%). Voice IVR PoC жив — можно делать.
 - [ ] **G0 (related)**: Gemini LLM role — отложено пока v0.1 не запущен. v0.3 candidate (intent classifier) ИЛИ post-STT rewrite. Решение не блокирует v0.1.
-- [ ] **W4 (deferred follow-ups)**: SpeechTranscriber debug (почему empty в iOS 26.5); WhisperKit on iPhone V2; Gemma 3n E2B audio bench; numbers/versions post-STT regex (+15pp WER quick win на Set 4).
+- [x] **W4-Gemma**: Gemma 3n E2B audio bench (Win-CUDA) — **выбыл**. WER 44.5% clean / 65.2% GSM (vs Whisper turbo 30/31%), 25.4s/файл (в 57× медленнее). Hardware constraint: model offloaded в CPU 11.7GB RAM (RTX 3070 8GB не вместил). Verbatim STT не годится; возможно интересна для **«статья-заметка»** output style — long-form bench следующая сессия. Writeback в HYP-028.
+- [x] **W4-TextNorm**: Numbers normalization production code (`Sources/VoiceAssistant/TextNormalization.swift` + tests). На нашем корпусе zero impact — Whisper/Apple Speech уже выдают digits сами. Оставлен для future cloud STT.
+- [ ] **W4-Speech**: SpeechTranscriber debug (iOS 26.5 empty output) — отложено
+- [ ] **W4-WhisperKit-iOS**: WhisperKit base на iPhone 13 mini V3 (V2 OOM'нул) — pending Sergey Run в Xcode
+- [ ] **W5 (new)**: Long-form bench — Whisper turbo vs Gemma 3n c 30s chunking на 28-min Stack Overflow Podcast editorial transcript (assets/long-form-bench/en/). Brief: `bench/LONGFORM_BENCH_BRIEF.md`. RU candidate TBD (yt-dlp YouTube blocked, retry через mac-home proxy).
 
 ---
 

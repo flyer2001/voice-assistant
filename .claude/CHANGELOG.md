@@ -1,3 +1,44 @@
+## [2026-06-10/11] STT bench full cycle — Whisper turbo winner + Gemma 3n results + long-form prep
+
+**Сделано:**
+- ✅ V1 Apple Speech bench на iPhone 13 mini iOS 26.5 — SFSpeechRecognizer + DictationTranscriber + SpeechTranscriber (V2), 288 transcriptions
+- ✅ Win-home + mac-home full Whisper bench — 4 моделей × 32 файла × 3 runs × 2 codecs = 768 transcriptions cross-validation
+- ✅ Gemma 3n E2B audio bench (Win-CUDA через HF token) — 96 files clean + 96 gsm = 192 transcriptions
+- ✅ Bench scripts (monitor.py + compute_metrics.py + bench_whisper_faster.py + bench_whisper_cpp.py + bench_gemma_hf.py + ffmpeg pipelines)
+- ✅ iOS Xcode project setup через XcodeGen — VoiceAssistantApp.xcodeproj, Personal Team signing (`com.voiceassistant.app.flyer2001`), SPM bundle audio resources через `.process(Resources)` + `Bundle.module`
+- ✅ TextNormalization (production code) + tests + compute_metrics integration — finding: zero impact на нашем корпусе (Whisper/Apple Speech уже выдают digits сами)
+- ✅ HYP-028 + HYP-045 writeback в myRep hub с результатами benchmark
+- ✅ TASKS W1/W2/W3 closed
+- ✅ Long-form bench prep — Stack Overflow Podcast 28min audio + 5088-word editorial transcript в `assets/long-form-bench/en/`, brief `bench/LONGFORM_BENCH_BRIEF.md`
+
+**Решения:**
+- **Server-side STT: Whisper large-v3-turbo на Win-CUDA** (30% WER, 77% Term Acc, 447ms на 15s — 33× realtime). Cross-validation Win/Mac give identical WER ±2pp; Win-CUDA в 3.4× быстрее Mac-Metal на той же модели.
+- **On-device STT: Apple DictationTranscriber (iOS 26 new)** на iPhone 13 mini (50% WER, 29% Term Acc, 1166ms). Бесплатно, system-managed, 0 MB app bundle. SFSpeechRecognizer не используется (legacy 15s лимит, 2% Term Acc). SpeechTranscriber broken на iOS 26.5 SDK — отложено в debug.
+- **HYP-045 voice IVR через GSM — ✅ FEASIBLE**: ΔWER (clean→GSM 06.10) для Whisper turbo +0.6-1.7% 🟢, Apple DictationTranscriber +1.6% 🟢. Threshold был >15%. Можно делать PoC.
+- **Gemma 3n E2B audio — отвергнута для verbatim STT**: WER 44.5% clean (vs Whisper 30%), 65.2% GSM (vs Whisper 31% — катастрофично), 25.4s/файл (в 57× медленнее Whisper). На RTX 3070 8GB не вместилась в VRAM (offloaded в CPU 11.7 GB RAM). Возможно interesting для **end-to-end voice→intent** (где interpretation = feature) или для **«статья-заметка»** output style — это next session.
+- **Numbers normalization** — production code сохранён для будущих cloud STT, но не helps на нашем корпусе. Real Set 4 errors — это term split ("WhisperKit"→"Whisper Kit"), не spelled-out digits.
+
+**Открытое:**
+- iPhone V3 WhisperKit base прогон — ждём Sergey Run в Xcode утром (Apple stack уже в V2 dataset, WhisperKit small отключен из-за OOM 4GB RAM)
+- Long-form bench (Whisper turbo vs Gemma 3n c 30s chunking pipeline) — следующая сессия
+- RU long-form candidate — yt-dlp YouTube blocked, retry через mac-home `claude-ufo` proxy в следующей сессии (или искать non-YouTube источник: Habr статьи "по мотивам подкаста", WWDC RU translation, Tinkoff/Avito/Yandex tech talks)
+- SpeechTranscriber debug — почему empty в iOS 26.5 (вероятно AssetInventory.assetInstallationRequest silent fail или async lifetime issue)
+- В hub'е HYP-028 + HYP-045 writeback дважды коммитился (первый раз 2026-06-10 утром, второй с Gemma 2026-06-11 ночь) — both pushed
+
+**Файлы:**
+- bench/scripts/* (5 Python benches + monitor + compute_metrics + 2 ffmpeg shell)
+- bench/ground-truth.json (8 transcripts + 31 anglicism + 4 number targets)
+- bench/CORPUS.md, bench/IOS_BENCH_BRIEF.md, bench/IPHONE_BENCH_STATUS.md, bench/LONGFORM_BENCH_BRIEF.md
+- bench/results/REPORT-2026-06-10.md (final report v3 with Gemma)
+- bench/results/all-metrics.csv (1152 rows enriched)
+- bench/results/{win,mac,gemma}/*.csv
+- Sources/VoiceAssistant/BenchResources.swift (SPM bundle accessor)
+- Sources/VoiceAssistant/TextNormalization.swift + Tests/VoiceAssistantTests/TextNormalizationTests.swift
+- iOS/* (XcodeGen spec + Swift app + setup-resources.sh)
+- docs/whisper-benchmark-plan.md
+- .claude/TASKS.md (W1/W2/W3 closed)
+- myRep hub: hypotheses/HYP-028, hypotheses/HYP-045 (writeback)
+- assets/long-form-bench/en/* (28min audio + 5088-word transcript, gitignored)
 # CHANGELOG — voice
 
 > Prepend новые записи сверху. Никогда не редактировать существующие.
