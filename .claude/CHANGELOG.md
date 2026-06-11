@@ -1,3 +1,39 @@
+## [2026-06-11] Backend voice-service v0.1 (B1-B8 GREEN) + iPhone V3 + long-form bench + VK spike found
+
+**Сделано:**
+- ✅ **Backend B1-B8 GREEN на VDS** — `backend/voice-service/` Swift package + Hummingbird 2.5 + swift-crypto. POST /v1/voice/intent contract + Bearer auth + Happy inject Swift port (HappyState + HappyCrypto AES-256-GCM + HappyAPI + JsonlWatcher + LiveHappyInjectMessenger composition) + RequestLogger JSONL + systemd unit + deploy README. **20/20 unit tests pass** (Swift Testing) + 3/3 smoke tests pass (401 на missing/wrong token + 503 на отсутствие Happy session + JSONL log shape).
+- ✅ **iPhone V3 WhisperKit base bench** — 96 транскрипций через Xcode Run (Sergey разблокировал codesign). WER 62.6% / Term 50.7% / Latency 368ms. **3× быстрее DictationTranscriber** но **WER хуже на 13pp** — не upgrade, trade-off.
+- ✅ **Long-form bench (28-min EN Stack Overflow Podcast)** — Whisper turbo + Whisper large на Win-CUDA. Bench script + extended metrics (WER + Term Acc + Readability + Speaker tags + Topic Jaccard). REPORT-LONGFORM-2026-06-11.md с findings.
+- ✅ **Gemma 3n 29-sec single-chunk proof** — гипотеза Sergey'я о paraphrasing/article-style подтверждена качественно. Full long-form chunked невозможен на RTX 3070 8GB (44+ min wall-clock без single CSV row).
+- ✅ **VK Bot Bridge spike найден** в `tg-client/feature/vk-bot-bridge` (1055 LOC Swift + RFC v0.6.0 Long Poll migration). Battle-tested infra reusable для voice-service V-phase.
+- ✅ **Research subagents** (VK Bot API + TTS engines) — 2 параллельных отчёта собрали. Verdict TTS: Piper TTS (ru_RU-irina-medium), MIT license, 22× realtime CPU, fits 4GB VDS.
+- ✅ **Memory pointers saved** (3 файла): reference_vk_bot_bridge_spike, reference_vk_bot_contracts, reference_tts_piper. Linked в MEMORY.md.
+- ✅ **TASKS.md updated** — B1-B8 marked done с commit hash 393ee7b. V0-V10 (VK transport phase) добавлены с reuse pointer.
+
+**Решения:**
+- **Article-style verdict**: Whisper turbo выдаёт wall-of-text (2 sentences / 5637 слов, без punctuation), Whisper large даёт **213 sentences** с avg 26 words/sentence. Для article-style **Whisper large >> turbo** несмотря на 5× slower. Gemma 3n даёт article style natively (caps + punctuation + abstraction), но scaling impractical на consumer GPU. **Production recommendation Path A: Whisper large + Claude API rewrite** (~$0.05 / 28-min file).
+- **iPhone V3 WhisperKit base — не upgrade DictationTranscriber'у**: для v0.1 on-device остаётся Apple DictationTranscriber. WhisperKit base — backup option если latency 1166ms критична.
+- **VK transport** будет cherry-pick инфраструктуры из tg-client spike, **НЕ полное переписывание**. RFC v0.6.0 раздел 1.5 уже сделал решение webhook → Long Poll (Sergey'ем в мае 2026). Reuse его architecture + B-01..B-09 battle findings.
+- **TTS engine: Piper** (vs Silero отбросили из-за CC-BY-NC; XTTS-v2 OOM на 4GB VDS; Coqui shut down 2024). ru_RU-irina-medium MIT, 60-120 MB RAM, streaming via `--output_raw | ffmpeg`.
+- **Architecture: один service, два transport** — voice-service на VDS + HTTP /v1/voice/intent (iOS) + Long Poll loop (VK), shared HappyInjectMessenger.
+
+**Открытое:**
+- VK creds для следующей сессии: VK_BOT_TOKEN (community, scopes `messages`+`docs`) + VK_BOT_GROUP_ID + VK_BOT_OWNER_IDS — старый VDS с /etc/tg-client.env слетел, нужно новый token Sergey'ю.
+- Sergey должен один раз написать боту от user account для opening dialog (canonical VK bot pattern).
+- Whisper turbo на win-home — FastAPI wrapper (V3a) для voice-service ↔ win-home access. Sergey выбрал FastAPI вместо SSH-script call. WoL bootstrap (~30s cold start OK).
+- Target Happy CWD: /root/projects/voice (recursive, dev-friendly для smoke).
+- Bench/results/gemma/* CSVs — untracked dir, gitignored выборочно (raw csv в bench/results/ ignored, в subfolders нет). Не блокер.
+- Gemma 3n chunked perf debug — почему single-chunk 24s, chunked loop 44+ min на том же hardware? Возможен memory leak в loop. Backlog.
+- num2words[ru] RU text normalizer ДО TTS — без него Piper читает "123" буквально. V7 в плане.
+
+**Файлы:**
+- backend/voice-service/{Package.swift, Sources/VoiceService/main.swift, Sources/VoiceServiceCore/*, Tests/VoiceServiceCoreTests/*, deploy/*}
+- bench/results/REPORT-LONGFORM-2026-06-11.md
+- bench/scripts/{bench_longform.py, compute_longform_metrics.py}
+- .claude/TASKS.md (B1-B8 done, V0-V10 added)
+- ~/.claude/projects/-root-projects-voice/memory/{reference_vk_bot_bridge_spike.md, reference_vk_bot_contracts.md, reference_tts_piper.md, MEMORY.md updated}
+
+
 ## [2026-06-10/11] STT bench full cycle — Whisper turbo winner + Gemma 3n results + long-form prep
 
 **Сделано:**

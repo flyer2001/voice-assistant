@@ -62,16 +62,39 @@
 
 **Platform target:** iOS app, dev-run через "My Mac (Designed for iPad)" на mac-home + iOS simulator. Реальный iPhone для UX-валидации.
 
-### Backend (VDS, отдельный Hummingbird service)
+### Backend (VDS, отдельный Hummingbird service) — DONE 2026-06-11 (commit 393ee7b)
 
-- [ ] **B1**: Создать `backend/voice-service/` — отдельный Swift package с Hummingbird 2 dep. `Package.swift` + `Sources/VoiceService/`.
-- [ ] **B2**: Endpoint `POST /v1/voice/intent` — accept body (см. spec), валидация, mapping в reply struct. **TDD:** failing test ДО реализации (acceptance criteria: HTTP 200 с правильным JSON shape).
-- [ ] **B3**: Auth middleware — Bearer token из header, mismatch → 401 (JSON shape per spec).
-- [ ] **B4**: Forward в Happy inject — Swift port `inject.mjs` логики (AES-256-GCM, маппинг cwd → Happy sid). **Research-first:** прочитать `~/projects/assistant/scripts/inject/inject.mjs`, написать failing test на mock-inject endpoint ДО port'а.
-- [ ] **B5**: Reply path — wait for assistant message (port `--wait-reply` логики, polling JSONL latest mtime). Timeout 15с (per spec).
-- [ ] **B6**: Логирование `/var/log/voice.jsonl` (ts, client_id, text, reply, latency, error). **TDD:** контракт лога — это observability обязательство, тестировать формат.
-- [ ] **B7**: systemd unit `voice-backend.service` — отдельный, не цепляется к cashflow-bot. Restart=on-failure, journal logs.
-- [ ] **B8**: Deploy на VDS — порт 8089, доступен через WireGuard (внутренний IP), public HTTPS — fallback (nginx reverse proxy).
+- [x] **B1**: Создан `backend/voice-service/` — Swift package с Hummingbird 2.5+ + swift-crypto 3+.
+- [x] **B2**: Endpoint `POST /v1/voice/intent` — TDD: failing test первым, 200 OK с reply+latency_ms.
+- [x] **B3**: BearerAuthMiddleware → 401 `{"error":"unauthorized"}` на missing/wrong token.
+- [x] **B4**: Happy inject Swift port — HappyState (read access.key + sessions.json, pickRunningSession by cwd) + HappyCrypto (AES-256-GCM bundle [version=0][nonce:12][ct][tag:16]) + HappyAPI (POST /v3/sessions/{sid}/messages).
+- [x] **B5**: JsonlWatcher — tail latest *.jsonl in ~/.claude/projects/<encoded-cwd>/, extract assistant text, re-scan latest для cold-start/post-endsession resume, advance baseline после read.
+- [x] **B6**: RequestLogger /var/log/voice.jsonl — append-only, success/error paths separate, JSON shape с ts/client_id/text/reply|error/latency_ms.
+- [x] **B7**: systemd unit `voice-backend.service` + EnvironmentFile example + deploy/README.md.
+- [x] **B8**: Release build (47 MB), smoke test passed: 401 (no auth + wrong token) + 503 (no Happy session) + JSONL log line shape — 3/3.
+- [x] **B-tests**: 20/20 unit tests pass (Swift Testing): IntentEndpoint × 3, HappyCrypto × 3, HappyState × 4, JsonlWatcher × 6, RequestLogger × 4.
+
+### Backend extension — VK transport (V-tier, next session)
+
+> Reuse: `tg-client/feature/vk-bot-bridge` спайк (1055 LOC Swift) + RFC v0.6.0 Long Poll migration. См. memory `reference_vk_bot_bridge_spike.md`.
+> **DoD V-phase**: voice in (через ВК) → STT → Happy inject → text reply → TTS → voice out (через ВК).
+
+- [ ] **V0**: Cherry-pick `Sources/BotBridge/` infrastructure из tg-client → `backend/voice-service/Sources/VKAdapter/`:
+  - VKAPIClient (REST messages.send) + adapt to AsyncHTTPClient (без Hummingbird для Long Poll)
+  - VKModels (Codable types) + extend с AudioMessageAttachment + DocsSaveResponse shapes
+  - BotSessionState (per-owner state)
+  - Battle findings B-02/B-05/B-08/B-09 (см. spike RFC раздел 1.2)
+- [ ] **V1**: Long Poll loop — `VKLongPollClient` actor. groups.getLongPollServer + poll {server}?act=a_check&wait=25. Handle failed:1 (ts), failed:2,3 (refetch). TDD: MockHTTPClient.
+- [ ] **V2**: Receive — parse `message_new` events. Text → HappyInjectMessenger.send. audio_message attachment → save link_ogg URL для V3.
+- [ ] **V3**: Voice STT — download link_ogg → IF VK transcript_state="done" use it ELSE send to Whisper turbo на Win-CUDA (нужен endpoint на win-home, см. V3a). Audit log decision.
+- [ ] **V3a**: FastAPI или simple HTTP wrapper на win-home для Whisper turbo — receive WAV bytes → return JSON `{text, latency_ms}`. Минимальный, можно через PowerShell + Python.
+- [ ] **V4**: Send text reply — VKAPIClient.messages.send peer_id=<owner_id> message=<text>. Existing API.
+- [ ] **V5**: TTS install — Piper TTS на VDS (`~/piper/piper/piper` + voices/ru_RU-irina-medium.onnx + en_US-lessac-medium.onnx). См. memory `reference_tts_piper.md`.
+- [ ] **V6**: TTS pipeline — Swift Process wrapping `piper --output_raw | ffmpeg -c:a libopus -b:a 24k -ar 16000 -ac 1 -f ogg`. Streaming pipe. ~2-3 sec total для 100-word reply.
+- [ ] **V7**: RU text normalizer ДО TTS — числа `123` → "сто двадцать три", аббревиатуры, dates. `num2words[ru]` (Python script) или Swift regex. Без этого Piper читает "сто двадцать три" как "1 2 3".
+- [ ] **V8**: Voice send pipeline — docs.getMessagesUploadServer (type=audio_message, peer_id) → multipart POST file → docs.save → messages.send + attachment=doc{owner_id}_{id}.
+- [ ] **V9**: E2E smoke — voice mailbox endpoint в личке VK community. Sergey пишет голос → бот шлёт voice reply + text caption.
+- [ ] **V10**: Audit log JSON per request: `{owner_id, peer_id, cmd:"voice_intent", stt_source, stt_ms, inject_ms, tts_ms, total_ms, decision}` → /var/log/voice-vk.jsonl.
 
 ### Client (iOS app, dev-tested on Mac)
 
