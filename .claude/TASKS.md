@@ -53,8 +53,8 @@
 - [x] **W4-Gemma**: Gemma 3n E2B audio bench (Win-CUDA) — **выбыл**. WER 44.5% clean / 65.2% GSM (vs Whisper turbo 30/31%), 25.4s/файл (в 57× медленнее). Hardware constraint: model offloaded в CPU 11.7GB RAM (RTX 3070 8GB не вместил). Verbatim STT не годится; возможно интересна для **«статья-заметка»** output style — long-form bench следующая сессия. Writeback в HYP-028.
 - [x] **W4-TextNorm**: Numbers normalization production code (`Sources/VoiceAssistant/TextNormalization.swift` + tests). На нашем корпусе zero impact — Whisper/Apple Speech уже выдают digits сами. Оставлен для future cloud STT.
 - [ ] **W4-Speech**: SpeechTranscriber debug (iOS 26.5 empty output) — отложено
-- [ ] **W4-WhisperKit-iOS**: WhisperKit base на iPhone 13 mini V3 (V2 OOM'нул) — pending Sergey Run в Xcode
-- [ ] **W5 (new)**: Long-form bench — Whisper turbo vs Gemma 3n c 30s chunking на 28-min Stack Overflow Podcast editorial transcript (assets/long-form-bench/en/). Brief: `bench/LONGFORM_BENCH_BRIEF.md`. RU candidate TBD (yt-dlp YouTube blocked, retry через mac-home proxy).
+- [x] **W4-WhisperKit-iOS** (2026-06-11): WhisperKit base на iPhone 13 mini V3 — 96 транскрипций. WER 62.6% / Term 50.7% / 368ms (3× быстрее DictationTranscriber, но WER хуже на 13pp). **Не upgrade** к Apple stack по качеству; win только на latency. Для v0.1 on-device остаётся DictationTranscriber. См. `bench/results/ios-v3-bench-metrics.csv`.
+- [x] **W5** (2026-06-11): Long-form bench (28-min EN podcast). Whisper turbo 12.6% WER но wall-of-text (2 sentences). Whisper large 11.4% WER с 213 sentences (article-workable). Gemma 3n 29-sec sample — perfect article style (caps, periods, abstracts URLs), full chunked run impractical на RTX 3070 8GB. **Гипотеза Sergey'я о paraphrasing подтверждена на sample.** Decision для article-style: **Path A** = Whisper large + Claude rewrite. См. `bench/results/REPORT-LONGFORM-2026-06-11.md`.
 
 ---
 

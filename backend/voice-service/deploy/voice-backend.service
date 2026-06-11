@@ -1,0 +1,30 @@
+[Unit]
+Description=Voice backend (Hummingbird) — POST /v1/voice/intent → Happy inject
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/projects/voice/backend/voice-service
+ExecStart=/root/projects/voice/backend/voice-service/.build/release/voice-service
+
+# Required env (set in EnvironmentFile or systemd override). NO default token.
+EnvironmentFile=/etc/voice-backend.env
+
+# Defaults if missing in EnvironmentFile
+Environment="VOICE_HOST=127.0.0.1"
+Environment="VOICE_PORT=8089"
+Environment="VOICE_LOG_PATH=/var/log/voice.jsonl"
+Environment="HAPPY_SERVER_URL=https://api.cluster-fluster.com"
+
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Allow reading /root/.happy and writing /var/log/voice.jsonl
+ReadWritePaths=/var/log /root/.happy
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
