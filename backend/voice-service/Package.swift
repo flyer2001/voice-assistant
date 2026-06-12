@@ -11,6 +11,9 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+        .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.34.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.65.0"),
     ],
     targets: [
         .target(
@@ -20,9 +23,17 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
+        .target(
+            name: "VKAdapter",
+            dependencies: [
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
+            ]
+        ),
         .executableTarget(
             name: "VoiceService",
-            dependencies: ["VoiceServiceCore"]
+            dependencies: ["VoiceServiceCore", "VKAdapter"]
         ),
         .testTarget(
             name: "VoiceServiceCoreTests",
@@ -30,6 +41,10 @@ let package = Package(
                 "VoiceServiceCore",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
             ]
+        ),
+        .testTarget(
+            name: "VKAdapterTests",
+            dependencies: ["VKAdapter"]
         ),
     ]
 )
