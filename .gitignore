@@ -64,7 +64,11 @@ bench/derived/
 # Generated Xcode project (regenerated from iOS/project.yml via xcodegen)
 iOS/VoiceAssistantApp.xcodeproj/
 
-# Bundled audio resources — копируются в SPM library Sources/ через iOS/setup-resources.sh
-Sources/VoiceAssistant/Resources/audio/
-iOS/VoiceAssistant/Resources/audio/
+# Bundled audio resources — копируются в SPM library Sources/ через iOS/setup-resources.sh.
+# Pattern ignores contents but NOT the directory itself, so .gitkeep markers can be
+# committed (Bundle.module is only generated when SPM target's resources path exists).
+Sources/VoiceAssistant/Resources/audio/*
+iOS/VoiceAssistant/Resources/audio/*
+!Sources/VoiceAssistant/Resources/audio/.gitkeep
+!iOS/VoiceAssistant/Resources/audio/.gitkeep
 bench/scripts/__pycache__/
