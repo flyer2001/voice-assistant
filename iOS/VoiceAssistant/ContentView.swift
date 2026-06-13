@@ -1,8 +1,10 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @State private var state: RecordingState = .idle
     @State private var lastTurn: String = ""
+    @State private var lastTrigger: TriggerSource = .none
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,6 +27,19 @@ struct ContentView: View {
             footer
         }
         .padding()
+        .background(
+            KeyMonitor(
+                onKeyDown: { (code: UIKeyboardHIDUsage) in
+                    guard code == .keyboardF15, state == .idle else { return }
+                    lastTrigger = .keyboard
+                    state = .recording
+                },
+                onKeyUp: { (code: UIKeyboardHIDUsage) in
+                    guard code == .keyboardF15, state == .recording else { return }
+                    finishRecording()
+                }
+            )
+        )
     }
 
     private var header: some View {
@@ -60,23 +75,45 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
+            Text("bind: touch + F15")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 
     private var holdGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { _ in
-                if state == .idle { state = .recording }
+                guard state == .idle else { return }
+                lastTrigger = .touch
+                state = .recording
             }
             .onEnded { _ in
                 guard state == .recording else { return }
-                state = .processing
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1))
-                    lastTurn = "[placeholder] processed at \(Date.now.formatted(date: .omitted, time: .standard))"
-                    state = .idle
-                }
+                finishRecording()
             }
+    }
+
+    private func finishRecording() {
+        state = .processing
+        let trigger = lastTrigger
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
+            lastTurn = "[\(trigger.label)] processed at \(Date.now.formatted(date: .omitted, time: .standard))"
+            state = .idle
+            lastTrigger = .none
+        }
+    }
+}
+
+enum TriggerSource {
+    case none, touch, keyboard
+    var label: String {
+        switch self {
+        case .none:     return "—"
+        case .touch:    return "touch"
+        case .keyboard: return "F15"
+        }
     }
 }
 
