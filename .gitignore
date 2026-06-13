@@ -72,3 +72,9 @@ iOS/VoiceAssistant/Resources/audio/*
 !Sources/VoiceAssistant/Resources/audio/.gitkeep
 !iOS/VoiceAssistant/Resources/audio/.gitkeep
 bench/scripts/__pycache__/
+
+# TTS bench venv
+bench/scripts/tts/.venv/
+bench/scripts/tts/__pycache__/
+bench/results/tts/
+Sources/VoiceAssistant/Resources/whisperkit/openai_whisper-*/

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "created": "2026-06-13",
+  "notes": "Test corpus for TTS provider benchmark. Each phrase exercises a different facet of RU + EN code-mixing relevant to voice-assistant production use.",
+  "phrases": [
+    {
+      "id": "p1-cmd-ru",
+      "text": "Сколько денег на счету?",
+      "category": "command_ru",
+      "purpose": "Baseline RU прозодия, короткий вопрос"
+    },
+    {
+      "id": "p2-codemix-tech",
+      "text": "Push the API endpoint, refactor the adapter.",
+      "category": "codemix_tech",
+      "purpose": "Чистый EN с тех. терминами — проверка англ. голоса"
+    },
+    {
+      "id": "p3-codemix-mid",
+      "text": "Bro, я серьёзно, ты опять забыл deploy запушить?",
+      "category": "codemix_ru_en",
+      "purpose": "RU + EN терминs в одной фразе — главный тест для XTTS / ElevenLabs"
+    },
+    {
+      "id": "p4-alert",
+      "text": "Внимание! Критическая ошибка в production-сервисе.",
+      "category": "alert",
+      "purpose": "Прозодия тревоги, exclamation, дефис в составном слове"
+    },
+    {
+      "id": "p5-humor",
+      "text": "Хе-хе, ну ты, конечно, и придумал. С такой архитектурой далеко не уедешь.",
+      "category": "humor_snark",
+      "purpose": "Юмор / ирония — главный субъективный критерий женский голос"
+    },
+    {
+      "id": "p6-path-numbers",
+      "text": "Транскрипт записан, файл сохранён в /tmp/recording-2026-06-13.caf",
+      "category": "tech_path",
+      "purpose": "Как читает путь файла, числа, дефисы"
+    },
+    {
+      "id": "p7-soft-question",
+      "text": "Я не уверена в ответе. Может, переформулируешь вопрос?",
+      "category": "soft_question",
+      "purpose": "Мягкий, доверительный тон — женственность голоса"
+    }
+  ]
+}
