@@ -141,6 +141,14 @@
 - v0.5+ iOS Shortcut integration, Apple Watch companion, история (SwiftData)
 - Repo rename: `voice` → бренд (перед public-share)
 - License decision: AGPL-3.0 + commercial dual vs BSL vs proprietary
+- Hardware-key binding refactor: SwiftUI `.onKeyPress(phases: [.down, .up])` вместо
+  текущего `KeyMonitor` (UIViewControllerRepresentable + pressesBegan/Ended). API
+  доступен с iOS 17.4 — поднять deployment target, выкинуть ~80 строк UIKit-bridge.
+  Текущая реализация (commit a94ab30) работает на iOS 17.0, оставить пока deployment
+  target не bumped.
+- Background PTT: custom BLE GATT device (ESP32-C3 / nRF52) если потребуется press
+  detection вне foreground — ZMK keyboard-mode foreground-only по дизайну iOS.
+  См. memory `reference_bt_button_ios_ptt.md`.
 
 ---
 

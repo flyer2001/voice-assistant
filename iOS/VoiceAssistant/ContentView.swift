@@ -1,10 +1,12 @@
 import SwiftUI
 import UIKit
+import VoiceAssistant
 
 struct ContentView: View {
     @State private var state: RecordingState = .idle
     @State private var lastTurn: String = ""
     @State private var lastTrigger: TriggerSource = .none
+    @State private var capture: AudioCapture = LiveAudioCapture()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,8 +33,7 @@ struct ContentView: View {
             KeyMonitor(
                 onKeyDown: { (code: UIKeyboardHIDUsage) in
                     guard code == .keyboardF15, state == .idle else { return }
-                    lastTrigger = .keyboard
-                    state = .recording
+                    beginRecording(trigger: .keyboard)
                 },
                 onKeyUp: { (code: UIKeyboardHIDUsage) in
                     guard code == .keyboardF15, state == .recording else { return }
@@ -75,7 +76,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
-            Text("bind: touch + F15")
+            Text("bind: touch + F15  ·  capture: AVAudioEngine")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -85,8 +86,7 @@ struct ContentView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { _ in
                 guard state == .idle else { return }
-                lastTrigger = .touch
-                state = .recording
+                beginRecording(trigger: .touch)
             }
             .onEnded { _ in
                 guard state == .recording else { return }
@@ -94,12 +94,31 @@ struct ContentView: View {
             }
     }
 
+    private func beginRecording(trigger: TriggerSource) {
+        lastTrigger = trigger
+        state = .recording
+        Task { @MainActor in
+            do {
+                try await capture.start()
+            } catch {
+                lastTurn = "[\(trigger.label)] start failed: \(error)"
+                state = .idle
+                lastTrigger = .none
+            }
+        }
+    }
+
     private func finishRecording() {
         state = .processing
         let trigger = lastTrigger
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            lastTurn = "[\(trigger.label)] processed at \(Date.now.formatted(date: .omitted, time: .standard))"
+            do {
+                let url = try await capture.stop()
+                let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+                lastTurn = "[\(trigger.label)] \(url.lastPathComponent) (\(size) B)"
+            } catch {
+                lastTurn = "[\(trigger.label)] stop failed: \(error)"
+            }
             state = .idle
             lastTrigger = .none
         }
