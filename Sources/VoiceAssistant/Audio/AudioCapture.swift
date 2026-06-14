@@ -71,7 +71,9 @@ public final class LiveAudioCapture: AudioCapture {
         }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        #endif
         audioFile = nil
         currentURL = nil
         return url
@@ -93,6 +95,7 @@ public final class LiveAudioCapture: AudioCapture {
     }
 
     private func configureSession() throws {
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.record, mode: .default, options: [])
@@ -100,6 +103,9 @@ public final class LiveAudioCapture: AudioCapture {
         } catch {
             throw AudioCaptureError.engineSetupFailed("AVAudioSession: \(error.localizedDescription)")
         }
+        #endif
+        // macOS doesn't have AVAudioSession — input device is selected through
+        // system settings + the engine takes care of capture permissions.
     }
 
     private func makeFileURL() -> URL {
