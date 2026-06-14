@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import MultipartKit
 
 public enum VoiceServiceApp {
     /// Build an Application configured for tests (`.router` transport) or for
@@ -12,13 +13,29 @@ public enum VoiceServiceApp {
             guard let sttProvider = config.sttProvider else {
                 return errorResponse(.serviceUnavailable, error: "stt_unavailable")
             }
+            let contentType = request.headers[.contentType] ?? ""
+            guard contentType.hasPrefix("multipart/form-data") else {
+                return errorResponse(.badRequest, error: "unsupported_format")
+            }
+            guard let boundary = extractBoundary(from: contentType) else {
+                return errorResponse(.badRequest, error: "unsupported_format")
+            }
+
             let body = try await request.body.collect(upTo: 64 * 1024 * 1024)
-            let audioBytes = Data(buffer: body)
-            // Slice 1: body treated as raw audio bytes, no multipart parsing yet.
-            // client_id will come from multipart in slice 2.
-            let clientId = ""
+
+            let audioReq: AudioMultipartRequest
             do {
-                let result = try await sttProvider(audioBytes, clientId)
+                audioReq = try FormDataDecoder().decode(
+                    AudioMultipartRequest.self,
+                    from: body,
+                    boundary: boundary
+                )
+            } catch {
+                return errorResponse(.badRequest, error: "missing_field")
+            }
+
+            do {
+                let result = try await sttProvider(audioReq.audio, audioReq.client_id)
                 let payload = AudioResponseDTO(
                     text: result.text,
                     lang: result.lang,
@@ -65,6 +82,17 @@ public enum VoiceServiceApp {
     }
 }
 
+/// Multipart fields for POST /v1/voice/audio. `audio` is the binary payload,
+/// other fields are scalar metadata. Optional `lang_hint` / `max_duration_s`
+/// stay nil if the client omits them (spec allows).
+struct AudioMultipartRequest: Decodable {
+    let audio: Data
+    let client_id: String
+    let ts: String
+    let lang_hint: String?
+    let max_duration_s: Double?
+}
+
 /// Wire format for POST /v1/voice/audio success response. Snake_case JSON
 /// to match the spec (intentional underscore-naming on the properties).
 struct AudioResponseDTO: Encodable {
@@ -74,6 +102,21 @@ struct AudioResponseDTO: Encodable {
     let stt_ms: Int
     let stt_engine: String
     let stt_source: String
+}
+
+/// Extract boundary value from a `multipart/form-data; boundary=ABC123` header.
+/// Tolerant of extra whitespace and optional quotes.
+private func extractBoundary(from contentType: String) -> String? {
+    guard let range = contentType.range(of: "boundary=", options: .caseInsensitive) else {
+        return nil
+    }
+    let after = contentType[range.upperBound...]
+    let raw = after.split(separator: ";", maxSplits: 1).first.map(String.init) ?? String(after)
+    let trimmed = raw.trimmingCharacters(in: .whitespaces)
+    if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") {
+        return String(trimmed.dropFirst().dropLast())
+    }
+    return trimmed.isEmpty ? nil : trimmed
 }
 
 private func jsonResponse<T: Encodable>(_ status: HTTPResponse.Status, body: T) -> Response {
