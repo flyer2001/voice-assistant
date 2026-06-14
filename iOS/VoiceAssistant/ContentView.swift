@@ -4,35 +4,42 @@ import VoiceAssistant
 
 struct ContentView: View {
     @State private var state: RecordingState = .idle
-    @State private var lastTurn: String = ""
+    @State private var lastError: String = ""
     @State private var lastTrigger: TriggerSource = .none
     @State private var capture: AudioCapture = LiveAudioCapture()
     @State private var uploader: STTUploader = LiveSTTUploader(
         // Dev default: backend running on the mac-home host of the simulator.
         // iOS Simulator routes localhost to its host. Real device / production
-        // overrides via secrets.local or Keychain (C8 ticket).
+        // overrides via secrets.local or Keychain (E2.5 ticket).
         baseURL: URL(string: "http://127.0.0.1:8089")!,
         token: "dev-token"
     )
+    @State private var dispatcher: DispatcherAdapter = DispatcherAdapter(
+        baseURL: URL(string: "http://127.0.0.1:8089")!,
+        token: "dev-token"
+    )
+    @State private var turnsStore = TurnsStore()
     private let clientId = "iphone-sim-dev"
 
     var body: some View {
         VStack(spacing: 0) {
             header
 
-            Spacer()
+            Spacer(minLength: 12)
 
             holdButton
-                .frame(width: 240, height: 240)
+                .frame(width: 200, height: 200)
                 .gesture(holdGesture)
 
             Text(state.label)
                 .font(.title3)
                 .foregroundStyle(state.tint)
-                .padding(.top, 24)
+                .padding(.top, 16)
                 .animation(.easeInOut(duration: 0.15), value: state)
 
-            Spacer()
+            Spacer(minLength: 12)
+
+            history
 
             footer
         }
@@ -69,7 +76,7 @@ struct ContentView: View {
             Circle()
                 .stroke(state.tint, lineWidth: state == .recording ? 4 : 2)
             Image(systemName: state.symbol)
-                .font(.system(size: 72, weight: .regular))
+                .font(.system(size: 64, weight: .regular))
                 .foregroundStyle(state.tint)
                 .symbolEffect(.pulse, options: .repeating, isActive: state == .recording)
         }
@@ -77,14 +84,43 @@ struct ContentView: View {
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: state)
     }
 
+    private var history: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    if turnsStore.turns.isEmpty {
+                        Text("no turns yet")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 24)
+                    } else {
+                        ForEach(turnsStore.turns) { turn in
+                            TurnView(turn: turn)
+                                .id(turn.id)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            .frame(maxHeight: 260)
+            .onChange(of: turnsStore.turns.count) { _, _ in
+                if let last = turnsStore.turns.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+        }
+    }
+
     private var footer: some View {
         VStack(spacing: 4) {
-            Text(lastTurn.isEmpty ? "no turns yet" : lastTurn)
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
-            Text("bind: touch + F15  ·  upload: 127.0.0.1:8089")
+            if !lastError.isEmpty {
+                Text(lastError)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 20, alignment: .center)
+            }
+            Text("bind: touch + F15  ·  127.0.0.1:8089")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -104,12 +140,13 @@ struct ContentView: View {
 
     private func beginRecording(trigger: TriggerSource) {
         lastTrigger = trigger
+        lastError = ""
         state = .recording
         Task { @MainActor in
             do {
                 try await capture.start()
             } catch {
-                lastTurn = "[\(trigger.label)] start failed: \(error)"
+                lastError = "[\(trigger.label)] start failed: \(error)"
                 state = .idle
                 lastTrigger = .none
             }
@@ -120,32 +157,37 @@ struct ContentView: View {
         state = .processing
         let trigger = lastTrigger
         Task { @MainActor in
-            let captureResult: (url: URL, bytes: Data)?
+            let bytes: Data
             do {
                 let url = try await capture.stop()
-                let bytes = try Data(contentsOf: url)
-                captureResult = (url, bytes)
+                bytes = try Data(contentsOf: url)
             } catch {
-                lastTurn = "[\(trigger.label)] capture failed: \(error)"
-                state = .idle
-                lastTrigger = .none
+                lastError = "[\(trigger.label)] capture failed: \(error)"
+                state = .idle; lastTrigger = .none
                 return
             }
-            guard let (_, bytes) = captureResult else {
-                state = .idle; lastTrigger = .none; return
-            }
+
+            let transcript: String
             do {
                 let response = try await uploader.upload(
                     audio: bytes,
                     clientId: clientId,
                     ts: .now
                 )
-                lastTurn = "[\(trigger.label)] \(response.text)"
+                transcript = response.text
             } catch let error as STTUploaderError {
-                lastTurn = "[\(trigger.label)] upload err: \(label(for: error))"
+                lastError = "[\(trigger.label)] upload err: \(label(for: error))"
+                state = .idle; lastTrigger = .none
+                return
             } catch {
-                lastTurn = "[\(trigger.label)] upload err: \(error)"
+                lastError = "[\(trigger.label)] upload err: \(error)"
+                state = .idle; lastTrigger = .none
+                return
             }
+
+            let pipeline = IntentPipeline(dispatcher: dispatcher, store: turnsStore)
+            await pipeline.handle(transcript: transcript, clientId: clientId)
+
             state = .idle
             lastTrigger = .none
         }
