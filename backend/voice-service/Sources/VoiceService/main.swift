@@ -1,25 +1,47 @@
 import Foundation
 import VoiceServiceCore
 
-let token = ProcessInfo.processInfo.environment["VOICE_BACKEND_TOKEN"] ?? {
+let env = ProcessInfo.processInfo.environment
+let token = env["VOICE_BACKEND_TOKEN"] ?? {
     fatalError("VOICE_BACKEND_TOKEN not set in env")
 }()
 
-// CWD that voice intents route into. Single-project mapping for v0.1.
-// Multi-project routing (intent-based) is v0.3.
-let targetCwd = ProcessInfo.processInfo.environment["VOICE_TARGET_CWD"] ?? {
-    fatalError("VOICE_TARGET_CWD not set (e.g. /root/projects/cashflow)")
-}()
+let mode = env["STT_MODE"]                 // "mock" → echo audio bytes; otherwise nil
+let host = env["VOICE_HOST"] ?? "127.0.0.1"
+let port = Int(env["VOICE_PORT"] ?? "") ?? 8089
 
-let messenger = LiveHappyInjectMessenger()
-let replyProvider = messenger.makeReplyProvider(targetCwd: targetCwd, timeout: .seconds(15))
+let replyProvider: @Sendable (IntentRequest) async throws -> String
+let logger: RequestLogger?
 
-let logPath = URL(fileURLWithPath: ProcessInfo.processInfo.environment["VOICE_LOG_PATH"] ?? "/var/log/voice.jsonl")
-let logger = RequestLogger(path: logPath)
+if mode == "mock" {
+    // Smoke / dev mode — no Happy session needed, no log file write.
+    replyProvider = { req in "[mock reply] \(req.text)" }
+    logger = nil
+} else {
+    let targetCwd = env["VOICE_TARGET_CWD"] ?? {
+        fatalError("VOICE_TARGET_CWD not set (e.g. /root/projects/cashflow)")
+    }()
+    let messenger = LiveHappyInjectMessenger()
+    replyProvider = messenger.makeReplyProvider(targetCwd: targetCwd, timeout: .seconds(15))
+    let logPath = URL(fileURLWithPath: env["VOICE_LOG_PATH"] ?? "/var/log/voice.jsonl")
+    logger = RequestLogger(path: logPath)
+}
 
-let host = ProcessInfo.processInfo.environment["VOICE_HOST"] ?? "127.0.0.1"
-let port = Int(ProcessInfo.processInfo.environment["VOICE_PORT"] ?? "") ?? 8089
+let sttProvider: STTProvider? = mode == "mock"
+    ? { bytes, clientId in
+        STTResult(
+            text: "[mock] echo \(bytes.count) bytes from \(clientId)",
+            sttEngine: "mock",
+            sttSource: "mock"
+        )
+    }
+    : nil
 
-let config = Configuration(token: token, replyProvider: replyProvider, requestLogger: logger)
+let config = Configuration(
+    token: token,
+    replyProvider: replyProvider,
+    sttProvider: sttProvider,
+    requestLogger: logger
+)
 let app = VoiceServiceApp.make(config: config, host: host, port: port)
 try await app.runService()

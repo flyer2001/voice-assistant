@@ -98,17 +98,29 @@
 
 ### Client (iOS app, dev-tested on Mac)
 
-> Все C-тикеты блокированы пока на mac-home нет Xcode + XcodeBuildMCP (см. v0.0 mac-home prep).
+> C1-C4 закрыты iOS infra-спайком 2026-06-12/13 (commits 1314884 / a94ab30 / f405385).
+> C5-C9 закрываются через user-stories S1/S2 (см. STORIES.md), а не в этой секции.
 
-- [ ] **C1**: Xcode project `iOS/VoiceAssistant.xcodeproj` — iOS app target. SPM package `VoiceAssistant` подключён как local dep. Info.plist + `NSMicrophoneUsageDescription`.
-- [ ] **C2**: Main view skeleton — hold-to-speak full-screen button (SwiftUI). Press-and-hold gesture, visual feedback (waveform mock или просто colored state).
-- [ ] **C3**: Mac run target — "My Mac (Designed for iPad)" работает, hold-to-speak by mouse-down/mouse-up. Verify сборка собирается через XcodeBuildMCP.
-- [ ] **C4**: AVFoundation audio capture — `AVAudioEngine` + tap on inputNode, append в buffer пока gesture held, stop on release. **Research-first:** sample rate, format (Float32 mono 16kHz для Whisper), microphone permission flow на macOS Tahoe (15+) / iOS 17+.
-- [ ] **C5**: STT integration. **Зависит от W3 decision.** On-device → WhisperKit `base` модель load on launch (background). Server-side → upload audio multipart к новому endpoint. **Research-first:** WhisperKit API surface ИЛИ multipart upload + retry semantics.
-- [ ] **C6**: DispatcherAdapter — реальная реализация `send(_:)`. URLSession POST, парсинг response per spec, маппинг error codes в `BackendError`. **TDD:** URLProtocol mock, тестируем все error paths.
-- [ ] **C7**: Bubble UI — список последних 10 turn'ов (in-memory), text-only, scroll, auto-focus last.
-- [ ] **C8**: Keychain storage для `BACKEND_TOKEN` — first-launch onboarding (prompt → write). **TDD:** Keychain abstraction `protocol TokenStore` + `KeychainTokenStore` + `InMemoryTokenStore` для тестов.
-- [ ] **C9**: Конфигурация через `secrets.local` (read at launch на Mac dev, override Keychain если файл есть — для dev convenience). На iPhone — только Keychain.
+- [x] **C1**: Xcode project `iOS/VoiceAssistant.xcodeproj` (XcodeGen via project.yml) — done 1314884.
+- [x] **C2**: Hold-to-speak full-screen button (SwiftUI) — done 1314884.
+- [~] **C3**: Mac run target — отложено, sim-only сейчас (iPhone 17 на mac-home Xcode 26).
+- [x] **C4**: AVFoundation `AVAudioEngine` capture — done f405385 (LiveAudioCapture protocol + impl).
+- [→ S1] **C5**: STT integration server-side — done через story S1 (см. STORIES.md): E1.4 STTUploader, E1.5 ContentView wire.
+- [→ S2] **C6**: DispatcherAdapter — будет в story S2.
+- [→ S2] **C7**: Bubble UI — будет в story S2.
+- [→ S2] **C8**: Keychain TokenStore — S2 E2.5.
+- [ ] **C9**: secrets.local (Mac dev override) — backlog.
+
+### S1 (Speech echo) — CLOSED 2026-06-14
+
+> User story see [STORIES.md](STORIES.md). DoD: voice → upload → STT → text on screen.
+
+- [x] **E1.1**: spec POST /v1/voice/audio in specs/backend-protocol.md (3ec85ee).
+- [x] **E1.2**: backend mock STT handler — 3 slices: handler + multipart + AudioLimits. 8 tests (5f1291a).
+- [ ] **E1.3**: real Whisper via FastAPI on win-home — **deferred** until win-home up. Mock OK for client dev.
+- [x] **E1.4**: iOS STTUploader (URLSession multipart, typed error mapping, 9 tests via URLProtocol mock) — 57f31df.
+- [x] **E1.5**: ContentView wire — capture.stop() → STTUploader.upload → footer renders transcript / typed error (08d94a0).
+- [x] **E1.6**: E2E smoke — backend in mock mode on mac-home, curl from VDS via WG returned `[mock] echo 2048 bytes from vds-curl-smoke`, 180ms RTT, server logged 200 OK. iOS sim tap manual-verified by Sergey.
 
 ### Glue / observability
 
