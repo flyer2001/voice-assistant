@@ -23,37 +23,37 @@
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p1-cmd-ru.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 2 /5
+- Адекватность контексту: 3 /5
+- Заметка (опц.): не правильное ударение 
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p1-cmd-ru.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p1-cmd-ru.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 4 /5
+- Заметка (опц.): неправильно ударение сче`ту
 
 ### silero/baya
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/silero/baya/p1-cmd-ru.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 4 /5
+- Адекватность контексту: 4 /5
+- Заметка (опц.): неправильно ударение сче`ту
 
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p1-cmd-ru.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 4 /5
+- Заметка (опц.): неправильно ударение сче`ту
 
 ---
 
@@ -66,23 +66,23 @@
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p2-codemix-tech.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 1 /5
+- Адекватность контексту: 1 /5
+- Заметка (опц.): вообще не разобрать английский слов, на ломаном русском
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p2-codemix-tech.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
+- Заметка (опц.): классно, слышится русский акцент, но слова произносятся правильно и понятно
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p2-codemix-tech.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 4 /5
+- Адекватность контексту: 2 /5
+- Заметка (опц.): плохо произносимо, сложно разобрать
 
 ### silero
 
@@ -91,9 +91,9 @@ _(нет семпла — пропущено провайдером)_
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p2-codemix-tech.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
+- Заметка (опц.): отличное произношение прям английская дикция
 
 ---
 
@@ -106,16 +106,16 @@ _(нет семпла — пропущено провайдером)_
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p3-codemix-mid.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 2 /5
+- Адекватность контексту: 3 /5
+- Заметка (опц.): относительно не плохо
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p3-codemix-mid.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
+- Заметка (опц.): только утадерение запу'шить неправильое
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p3-codemix-mid.wav
@@ -127,15 +127,15 @@ _(нет семпла — пропущено провайдером)_
 ### silero/baya
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/silero/baya/p3-codemix-mid.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 4 /5
+- Адекватность контексту: 4 /5
 - Заметка (опц.):
 
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p3-codemix-mid.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 4 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ---
@@ -149,37 +149,37 @@ _(нет семпла — пропущено провайдером)_
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p4-alert.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 1 /5
+- Адекватность контексту: 2 /5
+- Заметка (опц.): ужасное произношение
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p4-alert.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p4-alert.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 4 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ### silero/baya
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/silero/baya/p4-alert.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 4 /5
+- Адекватность контексту: 2 /5
+- Заметка (опц.): не произнесла production слово
 
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p4-alert.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 3 /5
+- Адекватность контексту: _ 2 /5
+- Заметка (опц.): плохо произноисит 
 
 ---
 
@@ -192,36 +192,36 @@ _(нет семпла — пропущено провайдером)_
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p5-humor.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 2 /5
+- Адекватность контексту: 3 /5
 - Заметка (опц.):
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p5-humor.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p5-humor.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 2 /5
+- Адекватность контексту: 4 /5
 - Заметка (опц.):
 
 ### silero/baya
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/silero/baya/p5-humor.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 3 /5
+- Адекватность контексту: 3 /5
+- Заметка (опц.): ударения в нескольких местах не правильные
 
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p5-humor.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 3 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ---
@@ -235,37 +235,37 @@ _(нет семпла — пропущено провайдером)_
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p6-path-numbers.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 3 /5
+- Адекватность контексту: 4 /5
 - Заметка (опц.):
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p6-path-numbers.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 4 /5
+- Заметка (опц.): вот тут в названии файлов накосякичал
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p6-path-numbers.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 4 /5
+- Адекватность контексту: 4 /5
 - Заметка (опц.):
 
 ### silero/baya
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/silero/baya/p6-path-numbers.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 3 /5
+- Адекватность контексту: 1 /5
+- Заметка (опц.): не читает английский просто пропускает
 
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p6-path-numbers.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 4 /5
+- Адекватность контексту: 4 /5
+- Заметка (опц.):название файла странно прочитала
 
 ---
 
@@ -278,36 +278,36 @@ _(нет семпла — пропущено провайдером)_
 ### apple/Milena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/apple/Milena/p7-soft-question.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 3 /5
+- Адекватность контексту: 4 /5
 - Заметка (опц.):
 
 ### yandex/alena
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/yandex/alena/p7-soft-question.mp3
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
-- Заметка (опц.):
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
+- Заметка (опц.): отличное интонирование
 
 ### piper/ru_RU-irina-medium
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/piper/ru_RU-irina-medium/p7-soft-question.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 5 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ### silero/baya
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/silero/baya/p7-soft-question.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 4 /5
+- Адекватность контексту: 5 /5
 - Заметка (опц.):
 
 ### xtts-v2/Claribel Dervla
 🔊 https://cashflow-game.ru/screenshots/1aa492bf-5009-4651-909f-64d2b06429ce/tts/xtts-v2/Claribel_Dervla/p7-soft-question.wav
 
-- Естественность: _ /5
-- Адекватность контексту: _ /5
+- Естественность: 2 /5
+- Адекватность контексту: 4 /5
 - Заметка (опц.):
 
 ---
