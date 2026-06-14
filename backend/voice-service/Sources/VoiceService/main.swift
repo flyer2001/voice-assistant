@@ -13,9 +13,11 @@ let port = Int(env["VOICE_PORT"] ?? "") ?? 8089
 let replyProvider: @Sendable (IntentRequest) async throws -> String
 let logger: RequestLogger?
 
-if mode == "mock" {
-    // Smoke / dev mode — no Happy session needed, no log file write.
-    replyProvider = { req in "[mock reply] \(req.text)" }
+// mock / live = STT-focused smoke modes; replyProvider is a stub since the
+// /v1/voice/intent path isn't exercised. Production (no STT_MODE) wires the
+// real Happy inject messenger.
+if mode == "mock" || mode == "live" {
+    replyProvider = { req in "[\(mode!) reply] \(req.text)" }
     logger = nil
 } else {
     let targetCwd = env["VOICE_TARGET_CWD"] ?? {
@@ -27,15 +29,26 @@ if mode == "mock" {
     logger = RequestLogger(path: logPath)
 }
 
-let sttProvider: STTProvider? = mode == "mock"
-    ? { bytes, clientId in
+let sttProvider: STTProvider?
+switch mode {
+case "mock":
+    sttProvider = { bytes, clientId in
         STTResult(
             text: "[mock] echo \(bytes.count) bytes from \(clientId)",
             sttEngine: "mock",
             sttSource: "mock"
         )
     }
-    : nil
+case "live":
+    let urlStr = env["WHISPER_URL"] ?? "http://192.168.88.13:8000"
+    sttProvider = { bytes, _ in
+        let whisperURL = URL(string: urlStr)!
+        let relay = WhisperHTTPRelay(baseURL: whisperURL)
+        return try await relay.transcribe(audio: bytes)
+    }
+default:
+    sttProvider = nil
+}
 
 let config = Configuration(
     token: token,
