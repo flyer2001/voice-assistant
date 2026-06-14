@@ -34,6 +34,30 @@ public enum VoiceServiceApp {
                 return errorResponse(.badRequest, error: "missing_field")
             }
 
+            let limits = config.audioLimits
+            let audioBytes = audioReq.audio.count
+            if audioBytes < limits.minAudioBytes {
+                return errorResponse(
+                    .badRequest,
+                    error: "audio_too_short",
+                    extra: ["min_bytes": limits.minAudioBytes, "got": audioBytes]
+                )
+            }
+            if audioBytes > limits.maxAudioBytes {
+                return errorResponse(
+                    .badRequest,
+                    error: "audio_too_long",
+                    extra: ["max_bytes": limits.maxAudioBytes, "got": audioBytes]
+                )
+            }
+            if let declared = audioReq.max_duration_s, declared > limits.maxDeclaredDurationS {
+                return errorResponse(
+                    .badRequest,
+                    error: "audio_too_long",
+                    extra: ["max_seconds": limits.maxDeclaredDurationS, "got": declared]
+                )
+            }
+
             do {
                 let result = try await sttProvider(audioReq.audio, audioReq.client_id)
                 let payload = AudioResponseDTO(

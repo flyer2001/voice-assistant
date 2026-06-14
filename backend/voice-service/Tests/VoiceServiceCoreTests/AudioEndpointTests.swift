@@ -19,7 +19,8 @@ struct AudioEndpointTests {
                         sttEngine: "mock",
                         sttSource: "mock"
                     )
-                }
+                },
+                audioLimits: .lenient
             )
         )
 
@@ -55,7 +56,8 @@ struct AudioEndpointTests {
             config: .init(
                 token: "test-token",
                 replyProvider: { _ in "" },
-                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") }
+                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") },
+                audioLimits: .lenient
             )
         )
 
@@ -107,7 +109,8 @@ struct AudioEndpointTests {
             config: .init(
                 token: "test-token",
                 replyProvider: { _ in "" },
-                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") }
+                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") },
+                audioLimits: .lenient
             )
         )
 
@@ -134,7 +137,8 @@ struct AudioEndpointTests {
             config: .init(
                 token: "test-token",
                 replyProvider: { _ in "" },
-                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") }
+                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") },
+                audioLimits: .lenient
             )
         )
 
@@ -163,6 +167,115 @@ struct AudioEndpointTests {
             }
         }
     }
+
+    @Test("400 audio_too_short when audio bytes below minAudioBytes limit")
+    func audioTooShort() async throws {
+        let app = VoiceServiceApp.make(
+            config: .init(
+                token: "test-token",
+                replyProvider: { _ in "" },
+                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") },
+                audioLimits: AudioLimits(minAudioBytes: 100, maxAudioBytes: .max, maxDeclaredDurationS: .infinity)
+            )
+        )
+        // 16 bytes audio, threshold is 100
+        let body = makeMultipart(
+            audioBytes: Data("fake-audio-bytes".utf8),
+            clientId: "iphone-test",
+            ts: "2026-06-14T16:34:00Z"
+        )
+
+        try await app.test(.router) { client in
+            try await client.execute(
+                uri: "/v1/voice/audio",
+                method: .post,
+                headers: [
+                    .authorization: "Bearer test-token",
+                    .contentType: "multipart/form-data; boundary=\(boundary)",
+                ],
+                body: ByteBuffer(data: body)
+            ) { response in
+                #expect(response.status == .badRequest)
+                let json = try JSONSerialization.jsonObject(with: Data(buffer: response.body)) as? [String: Any]
+                #expect(json?["error"] as? String == "audio_too_short")
+                #expect(json?["min_bytes"] as? Int == 100)
+                #expect(json?["got"] as? Int == 16)
+            }
+        }
+    }
+
+    @Test("400 audio_too_long when audio bytes exceed maxAudioBytes limit")
+    func audioTooLongBytes() async throws {
+        let app = VoiceServiceApp.make(
+            config: .init(
+                token: "test-token",
+                replyProvider: { _ in "" },
+                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") },
+                audioLimits: AudioLimits(minAudioBytes: 0, maxAudioBytes: 10, maxDeclaredDurationS: .infinity)
+            )
+        )
+        // 16 bytes audio, max is 10
+        let body = makeMultipart(
+            audioBytes: Data("fake-audio-bytes".utf8),
+            clientId: "iphone-test",
+            ts: "2026-06-14T16:34:00Z"
+        )
+
+        try await app.test(.router) { client in
+            try await client.execute(
+                uri: "/v1/voice/audio",
+                method: .post,
+                headers: [
+                    .authorization: "Bearer test-token",
+                    .contentType: "multipart/form-data; boundary=\(boundary)",
+                ],
+                body: ByteBuffer(data: body)
+            ) { response in
+                #expect(response.status == .badRequest)
+                let json = try JSONSerialization.jsonObject(with: Data(buffer: response.body)) as? [String: Any]
+                #expect(json?["error"] as? String == "audio_too_long")
+                #expect(json?["max_bytes"] as? Int == 10)
+                #expect(json?["got"] as? Int == 16)
+            }
+        }
+    }
+
+    @Test("400 audio_too_long when declared max_duration_s exceeds limit")
+    func audioTooLongDeclared() async throws {
+        let app = VoiceServiceApp.make(
+            config: .init(
+                token: "test-token",
+                replyProvider: { _ in "" },
+                sttProvider: { _, _ in STTResult(text: "x", sttEngine: "mock", sttSource: "mock") },
+                audioLimits: AudioLimits(minAudioBytes: 0, maxAudioBytes: .max, maxDeclaredDurationS: 60)
+            )
+        )
+        // Body declares 120s — over the 60s cap
+        let body = makeMultipartWithDuration(
+            audioBytes: Data("fake-audio-bytes".utf8),
+            clientId: "iphone-test",
+            ts: "2026-06-14T16:34:00Z",
+            maxDurationS: 120
+        )
+
+        try await app.test(.router) { client in
+            try await client.execute(
+                uri: "/v1/voice/audio",
+                method: .post,
+                headers: [
+                    .authorization: "Bearer test-token",
+                    .contentType: "multipart/form-data; boundary=\(boundary)",
+                ],
+                body: ByteBuffer(data: body)
+            ) { response in
+                #expect(response.status == .badRequest)
+                let json = try JSONSerialization.jsonObject(with: Data(buffer: response.body)) as? [String: Any]
+                #expect(json?["error"] as? String == "audio_too_long")
+                #expect(json?["max_seconds"] as? Double == 60)
+                #expect(json?["got"] as? Double == 120)
+            }
+        }
+    }
 }
 
 // MARK: - Test helpers
@@ -186,6 +299,34 @@ private func makeMultipart(audioBytes: Data, clientId: String, ts: String) -> Da
     append("--\(boundary)\r\n")
     append("Content-Disposition: form-data; name=\"ts\"\r\n\r\n")
     append("\(ts)\r\n")
+
+    append("--\(boundary)--\r\n")
+    return body
+}
+
+private func makeMultipartWithDuration(
+    audioBytes: Data, clientId: String, ts: String, maxDurationS: Double
+) -> Data {
+    var body = Data()
+    func append(_ s: String) { body.append(Data(s.utf8)) }
+
+    append("--\(boundary)\r\n")
+    append("Content-Disposition: form-data; name=\"audio\"; filename=\"rec.caf\"\r\n")
+    append("Content-Type: application/octet-stream\r\n\r\n")
+    body.append(audioBytes)
+    append("\r\n")
+
+    append("--\(boundary)\r\n")
+    append("Content-Disposition: form-data; name=\"client_id\"\r\n\r\n")
+    append("\(clientId)\r\n")
+
+    append("--\(boundary)\r\n")
+    append("Content-Disposition: form-data; name=\"ts\"\r\n\r\n")
+    append("\(ts)\r\n")
+
+    append("--\(boundary)\r\n")
+    append("Content-Disposition: form-data; name=\"max_duration_s\"\r\n\r\n")
+    append("\(maxDurationS)\r\n")
 
     append("--\(boundary)--\r\n")
     return body
