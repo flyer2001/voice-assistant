@@ -7,6 +7,14 @@ struct ContentView: View {
     @State private var lastTurn: String = ""
     @State private var lastTrigger: TriggerSource = .none
     @State private var capture: AudioCapture = LiveAudioCapture()
+    @State private var uploader: STTUploader = LiveSTTUploader(
+        // Dev default: backend running on the mac-home host of the simulator.
+        // iOS Simulator routes localhost to its host. Real device / production
+        // overrides via secrets.local or Keychain (C8 ticket).
+        baseURL: URL(string: "http://127.0.0.1:8089")!,
+        token: "dev-token"
+    )
+    private let clientId = "iphone-sim-dev"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -76,7 +84,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
-            Text("bind: touch + F15  ·  capture: AVAudioEngine")
+            Text("bind: touch + F15  ·  upload: 127.0.0.1:8089")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -112,15 +120,48 @@ struct ContentView: View {
         state = .processing
         let trigger = lastTrigger
         Task { @MainActor in
+            let captureResult: (url: URL, bytes: Data)?
             do {
                 let url = try await capture.stop()
-                let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
-                lastTurn = "[\(trigger.label)] \(url.lastPathComponent) (\(size) B)"
+                let bytes = try Data(contentsOf: url)
+                captureResult = (url, bytes)
             } catch {
-                lastTurn = "[\(trigger.label)] stop failed: \(error)"
+                lastTurn = "[\(trigger.label)] capture failed: \(error)"
+                state = .idle
+                lastTrigger = .none
+                return
+            }
+            guard let (_, bytes) = captureResult else {
+                state = .idle; lastTrigger = .none; return
+            }
+            do {
+                let response = try await uploader.upload(
+                    audio: bytes,
+                    clientId: clientId,
+                    ts: .now
+                )
+                lastTurn = "[\(trigger.label)] \(response.text)"
+            } catch let error as STTUploaderError {
+                lastTurn = "[\(trigger.label)] upload err: \(label(for: error))"
+            } catch {
+                lastTurn = "[\(trigger.label)] upload err: \(error)"
             }
             state = .idle
             lastTrigger = .none
+        }
+    }
+
+    private func label(for error: STTUploaderError) -> String {
+        switch error {
+        case .unauthorized:       return "401 unauthorized"
+        case .unsupportedFormat:  return "400 unsupported_format"
+        case .audioTooShort:      return "400 audio_too_short"
+        case .audioTooLong:       return "400 audio_too_long"
+        case .sttUnavailable:     return "503 stt_unavailable"
+        case .sttTimeout:         return "504 stt_timeout"
+        case .backendUnavailable: return "5xx backend_unavailable"
+        case .network(let msg):   return "network: \(msg)"
+        case .malformedResponse(let m): return "malformed: \(m)"
         }
     }
 }
