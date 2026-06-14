@@ -131,6 +131,17 @@
 - [x] **E1.5**: ContentView wire — capture.stop() → STTUploader.upload → footer renders transcript / typed error (08d94a0).
 - [x] **E1.6**: E2E smoke — backend in mock mode on mac-home, curl from VDS via WG returned `[mock] echo 2048 bytes from vds-curl-smoke`, 180ms RTT, server logged 200 OK. iOS sim tap manual-verified by Sergey.
 
+### S2 (Forward to Happy + bubble UI) — in progress
+
+> User story see [STORIES.md](STORIES.md). DoD: transcript → /v1/voice/intent → reply bubble + 10-turn history.
+
+- [x] **E2.1** (2026-06-14): `Turn` value-type (`Sources/VoiceAssistant/Models/Turn.swift`) + `TurnView` SwiftUI render (`Sources/VoiceAssistant/UI/TurnView.swift`). ReplyOutcome enum (.pending/.success(Reply)/.failure(String)). 5 TurnTests green (Triangulation: empty pending → success transition → failure → identity uniqueness → createdAt capture). Full suite 16/16 green on mac-work (mac-home in deep hibernate, pmset sleep 0 still not applied). View not unit-tested per TESTING.md §1.
+- [ ] **E2.2**: `TurnsStore` ObservableObject — last-10 FIFO history.
+- [ ] **E2.3**: DispatcherAdapter real impl — `/v1/voice/intent` POST via AsyncHTTPClient + error paths (401/429/503/timeout).
+- [ ] **E2.4**: ContentView pipeline — transcript → DispatcherAdapter.send → TurnsStore.append.
+- [ ] **E2.5**: Keychain `TokenStore` (BACKEND_TOKEN) + first-launch onboarding prompt.
+- [ ] **E2.6**: E2E smoke against real backend (Happy session live).
+
 ### Glue / observability
 
 - [ ] **G1**: Latency measurement — клиент логгит `capture_ms + transcribe_ms + network_ms + backend_ms + render_ms`. Цель ≤ 4с total.
