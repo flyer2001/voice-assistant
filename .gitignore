@@ -30,8 +30,10 @@ secrets.local.*
 *.key
 !secrets.example
 
-# WhisperKit downloaded models (large, fetched at runtime)
-Models/
+# WhisperKit downloaded models (large, fetched at runtime).
+# Anchored so they don't collide with Sources/VoiceAssistant/Models/ (Swift types).
+/Models/
+Sources/VoiceAssistant/Resources/whisperkit/Models/
 *.mlmodelc
 *.mlpackage
 
