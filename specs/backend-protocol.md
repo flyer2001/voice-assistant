@@ -97,6 +97,87 @@ The endpoint is **not** idempotent. The backend MAY apply the same text
 twice if the client retries. Clients SHOULD avoid retrying on `200` /
 `4xx` (except `429`).
 
+## Endpoint — voice audio in (added for S1)
+
+```
+POST {BACKEND_URL}/v1/voice/audio
+Content-Type: multipart/form-data; boundary=…
+Authorization: Bearer {BACKEND_TOKEN}
+```
+
+Receives raw audio from client, runs server-side STT, returns transcribed
+text. Used by S1 (Speech echo) and downstream by S2 once the transcript
+flows into `/v1/voice/intent`.
+
+### Multipart fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `audio` | yes | Binary audio file. Accepted formats: `.caf`, `.wav`, `.ogg`, `.m4a`, `.mp3`. Server normalizes to 16 kHz mono PCM before STT. |
+| `client_id` | yes | Free-form. Same semantics as `/v1/voice/intent`. |
+| `ts` | yes | ISO-8601 UTC client wall-clock at upload start. |
+| `lang_hint` | no | Optional BCP-47 (`ru`, `en`, `ru-RU`). Empty = auto-detect. Hint speeds up Whisper language detection. |
+| `max_duration_s` | no | Client-side declared cap. Server still enforces hard 60s. |
+
+### Response — success
+
+```
+HTTP 200 OK
+Content-Type: application/json
+
+{
+  "text": "сколько денег на счету",
+  "lang": "ru",
+  "duration_s": 1.82,
+  "stt_ms": 412,
+  "stt_engine": "whisper-large-v3-turbo",
+  "stt_source": "win-home"
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `text` | string | yes | UTF-8. Can be empty string if STT got pure silence. |
+| `lang` | string | yes | Detected (or hinted) BCP-47. |
+| `duration_s` | number | yes | Audio length client uploaded. |
+| `stt_ms` | integer | yes | STT processing time only (no network). |
+| `stt_engine` | string | yes | Free-form, e.g. `whisper-large-v3-turbo`, `whisper-base`, `mock`. Client treats as opaque (for observability only). |
+| `stt_source` | string | yes | Where STT ran (`win-home`, `vds-cpu`, `mock`). For observability. |
+
+### Response — errors (audio endpoint specific)
+
+| HTTP | Body shape | Client behavior |
+|---|---|---|
+| `400` | `{"error":"unsupported_format","accepted":[".caf",".wav","..."]}` | Show «формат не поддерживается». No retry. |
+| `400` | `{"error":"audio_too_long","max_seconds":60,"got":85}` | Show «слишком длинно». No retry. |
+| `400` | `{"error":"audio_too_short","min_ms":200}` | Show «слишком коротко». No retry. |
+| `502` | `{"error":"stt_unavailable","reason":"win-home offline"}` | STT backend down, audio not processed. Allow retry. |
+| `504` | `{"error":"stt_timeout","timeout_ms":30000}` | STT took too long. Allow retry. |
+
+Common errors (`401` / `403` / `429` / `503` / `5xx`) follow the same
+rules as `/v1/voice/intent` above.
+
+### Timeouts (audio endpoint)
+
+- Client request timeout: **30 seconds** (longer than `/v1/voice/intent`'s 15s — STT may run on CPU fallback).
+- Backend SHOULD return within 5s for sub-10-sec audio under normal load.
+- Max audio length hard cap: **60 seconds**.
+
+### Storage
+
+Backend MAY persist audio for debugging / re-transcription but MUST
+delete within 24h unless user opted into longer retention. v1 default:
+ephemeral (delete after STT completion). Privacy-first.
+
+### Implementation notes (informational, not part of contract)
+
+- Server-side normalization: `ffmpeg -i in.<ext> -ar 16000 -ac 1 -f wav -` before passing to Whisper.
+- STT engine routing (decided at backend startup):
+  1. If `WHISPER_URL` env set → forward audio to that URL (e.g., FastAPI on win-home)
+  2. Else → run `whisper.cpp` locally (CPU fallback)
+  3. Else → return `502 stt_unavailable`
+- Mock mode for dev / tests: env `STT_MODE=mock` → returns `text="[mock] <bytes-count> bytes received"`, `stt_engine="mock"`.
+
 ## Versioning
 
 `/v1/...` URL prefix is part of the contract. Breaking changes (renamed
