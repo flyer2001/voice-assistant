@@ -1,3 +1,49 @@
+## [2026-06-14] S1 Speech echo CLOSED end-to-end + win-home Whisper turbo live
+
+**Сделано:**
+- ✅ TTS bench финализирован — 5 провайдеров (Apple/Yandex/Piper/Silero/XTTS-v2) × 7 фраз, Sergey оценил MOS, FINAL-CHOICE: Yandex primary (5.0/4.86), XTTS-v2 secondary (3.83/4.5), Apple fallback (2.0/2.83). Audio hosted на VDS, отчёт + SURVEY в `bench/results/`
+- ✅ Architecture shift: STORIES.md (S1/S2/S3 + DoD/AC/E-tickets) — переход от spike к story-driven TDD
+- ✅ S1 E1.1: spec `POST /v1/voice/audio` в `specs/backend-protocol.md` (multipart + lang_hint + max_duration_s, error matrix 400/401/503/504)
+- ✅ S1 E1.2 (3 slices): mock STT handler + multipart parsing (swift-multipart-kit) + AudioLimits (min/max bytes + declared duration). 8/8 backend tests
+- ✅ S1 E1.4: iOS STTUploader на URLSession + URLProtocol mock, typed STTUploaderError mapping для всех server errors. 9/9 iOS tests
+- ✅ S1 E1.5: ContentView wire — AudioCapture.stop → STTUploader.upload → footer transcript / typed error
+- ✅ S1 E1.6 mock smoke: backend на mac-home через STT_MODE=mock, curl VDS→WG→mac-home 180ms RTT, `[mock] echo 2048 bytes from vds-curl-smoke`
+- ✅ S1 E1.3 real Whisper: FastAPI на win-home (CUDA + large-v3-turbo), real RU «Привет, тестируем распознавание речи через Виспер» транскрибируется точно. WhisperHTTPRelay в backend (AsyncHTTPClient, не URLSession — diagnosis ниже), E2E loopback green
+- ✅ Mac-work pivot tooling: SSHFS mount + `scripts/sim-grant.sh` (TCC pre-grant workaround macOS 26+), build green на iPhone 13 mini OS 18.4
+
+**Решения:**
+- **Story+E-ticket terminology**: Story = user-facing описание + DoD + AC. E-ticket = тех. подзадача внутри story (один failing test → один impl). Не путать
+- **TTS Tier 1 cloud Yandex / Tier 2 local XTTS / Tier 3 offline Apple**: Yandex ~$0.001/utterance, XTTS multilingual code-mix native (на mac-home/win-home сервере), Apple Milena built-in iOS (fallback без сети)
+- **URLSession → AsyncHTTPClient в backend на macOS 26.4**: diagnosed via fresh spike package `hb-spike` — URLSession.shared в Hummingbird async handler context crashes Swift runtime (EXC_BAD_ACCESS в type metadata accessor for Application). AsyncHTTPClient.shared identical pattern: stable. Backport за 5 минут
+- **Swift-tools 6.0 + Swift language mode v6**: voice-service Package.swift bumped 5.10 → 6.0
+- **Backend dev ⇒ mac-home**: VDS не нагружаем сборкой Swift, только prod deploy + hosting (см. instructions Sergey'я)
+- **iOS dev снова на mac-home** (mac-work был временной заменой 2026-06-12); ZMK F15 binding через UIViewControllerRepresentable + pressesBegan/Ended
+- **mac-home pmset sleep 0 нужен** — иначе clamshell mode засыпает и SSH/WG отваливаются (pmset memory)
+
+**Открытое:**
+- Story S2 (Happy forward + bubble UI): следующая user-facing работа. Transcript из S1 → /v1/voice/intent (existing endpoint) → reply bubble. 6 E-тикетов в STORIES.md
+- Story S3 (TTS reply via 3-tier Yandex/XTTS/Apple): E3.1-E3.8 в FINAL-CHOICE-TTS-2026-06-14.md
+- iPhone sim tap E2E (real UI) — backend готов в обоих modes (mock + live), Sergey может протестить hold-to-speak руками когда у Mac (manual)
+- `voice-service` как launchd service на mac-home для постоянной доступности (сейчас — background ssh holds backend)
+- Whisper FastAPI persistent: scheduled task / NSSM на win-home (сейчас — WMI Win32_Process Create, переживает ssh disconnect)
+- Sergey не применил `sudo pmset -a sleep 0 disksleep 0` на mac-home — рано или поздно clamshell sleep отрубит connection
+
+**Файлы:**
+- backend/voice-service/Package.swift (tools 6.0, +deps multipart-kit/AsyncHTTPClient/NIOFoundationCompat)
+- backend/voice-service/Sources/VoiceServiceCore/{Configuration,VoiceServiceApp,STTResult,WhisperHTTPRelay}.swift
+- backend/voice-service/Sources/VoiceService/main.swift (STT_MODE=mock/live switch)
+- backend/voice-service/Tests/VoiceServiceCoreTests/AudioEndpointTests.swift (8 tests)
+- Sources/VoiceAssistant/Backend/STTUploader.swift (new, +tests 9)
+- Sources/VoiceAssistant/Audio/AudioCapture.swift (#if os(iOS) wraps AVAudioSession)
+- iOS/VoiceAssistant/ContentView.swift (wired STTUploader)
+- iOS/VoiceAssistant/KeyMonitor.swift (F15 binding)
+- specs/backend-protocol.md (+voice/audio endpoint)
+- .claude/STORIES.md (new — S1/S2/S3 + DoD/AC)
+- .claude/TASKS.md
+- bench/scripts/tts/* (corpus + 5 provider runners + aggregate)
+- bench/results/{REPORT,SURVEY,FINAL-CHOICE}-TTS-2026-06-13.md
+- Win-home: C:/Users/Serg/whisper-server/server.py (FastAPI Whisper relay)
+
 ## [2026-06-11] Backend voice-service v0.1 (B1-B8 GREEN) + iPhone V3 + long-form bench + VK spike found
 
 **Сделано:**
@@ -135,4 +181,5 @@
 - .claude/TASKS.md
 - scripts/setup-mac-home.sh
 - docs/mac-home-setup.md
+
 

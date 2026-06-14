@@ -178,3 +178,17 @@
 - Whisper `base` на iPhone 15 — будет ли реально ≤ 600ms? Замерить в v0.2 первой задачей.
 - Global hotkey conflicts с другими apps — заложить остroke option (другая комбинация в settings) в v0.1 C3, иначе будет блокер.
 - Microphone permission flow на macOS Sequoia (15+) изменился — research-first перед C4.
+
+---
+
+## Operational TODO (post-S1)
+
+- [ ] `voice-service` на mac-home как launchd service (сейчас держится через background ssh который тянется только пока есть claude-сессия). См. `~/Library/LaunchAgents/`.
+- [ ] Whisper FastAPI на win-home как Scheduled Task / NSSM (сейчас через WMI Win32_Process Create — переживает ssh disconnect, но не reboot).
+- [ ] Sergey: `sudo pmset -a sleep 0 disksleep 0` на mac-home (см. `reference_mac_home_clamshell` memory — иначе SSH/WG отваливаются в clamshell mode).
+- [ ] Удалить временные spike-артефакты на mac-home: `/tmp/spike-hb/` (after final review).
+
+## Next stories
+
+- **S2** Forward to Happy + bubble UI — 6 E-тикетов в STORIES.md. Расширяет ContentView, подключает /v1/voice/intent (B-серия backend), bubble UI, Keychain TokenStore.
+- **S3** Voice reply via TTS (3-tier Yandex/XTTS/Apple) — 8 E-тикетов в FINAL-CHOICE-TTS-2026-06-14.md. Tier 1 cloud Yandex как primary.
