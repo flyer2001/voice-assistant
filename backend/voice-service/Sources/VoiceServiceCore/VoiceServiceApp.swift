@@ -8,6 +8,30 @@ public enum VoiceServiceApp {
     public static func make(config: Configuration, host: String = "127.0.0.1", port: Int = 8089) -> some ApplicationProtocol {
         let router = Router()
         router.add(middleware: BearerAuthMiddleware(token: config.token))
+        router.post("/v1/voice/audio") { request, context -> Response in
+            guard let sttProvider = config.sttProvider else {
+                return errorResponse(.serviceUnavailable, error: "stt_unavailable")
+            }
+            let body = try await request.body.collect(upTo: 64 * 1024 * 1024)
+            let audioBytes = Data(buffer: body)
+            // Slice 1: body treated as raw audio bytes, no multipart parsing yet.
+            // client_id will come from multipart in slice 2.
+            let clientId = ""
+            do {
+                let result = try await sttProvider(audioBytes, clientId)
+                let payload = AudioResponseDTO(
+                    text: result.text,
+                    lang: result.lang,
+                    duration_s: result.durationS,
+                    stt_ms: result.sttMs,
+                    stt_engine: result.sttEngine,
+                    stt_source: result.sttSource
+                )
+                return jsonResponse(.ok, body: payload)
+            } catch {
+                return errorResponse(.badGateway, error: "stt_failed")
+            }
+        }
         router.post("/v1/voice/intent") { request, context -> Response in
             let started = Date()
             let body = try await request.body.collect(upTo: 64 * 1024)
@@ -39,6 +63,17 @@ public enum VoiceServiceApp {
             configuration: ApplicationConfiguration(address: .hostname(host, port: port))
         )
     }
+}
+
+/// Wire format for POST /v1/voice/audio success response. Snake_case JSON
+/// to match the spec (intentional underscore-naming on the properties).
+struct AudioResponseDTO: Encodable {
+    let text: String
+    let lang: String
+    let duration_s: Double
+    let stt_ms: Int
+    let stt_engine: String
+    let stt_source: String
 }
 
 private func jsonResponse<T: Encodable>(_ status: HTTPResponse.Status, body: T) -> Response {

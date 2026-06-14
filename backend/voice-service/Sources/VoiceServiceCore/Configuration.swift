@@ -7,15 +7,18 @@ import Foundation
 public struct Configuration: Sendable {
     public let token: String
     public let replyProvider: @Sendable (IntentRequest) async throws -> String
+    public let sttProvider: STTProvider?
     public let requestLogger: RequestLogger?
 
     public init(
         token: String,
         replyProvider: @escaping @Sendable (IntentRequest) async throws -> String,
+        sttProvider: STTProvider? = nil,
         requestLogger: RequestLogger? = nil
     ) {
         self.token = token
         self.replyProvider = replyProvider
+        self.sttProvider = sttProvider
         self.requestLogger = requestLogger
     }
 }
