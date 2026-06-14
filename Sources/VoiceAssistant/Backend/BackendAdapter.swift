@@ -29,6 +29,7 @@ public struct Reply: Sendable, Equatable {
 public enum BackendError: Error, Sendable, Equatable {
     case network(underlying: String)
     case unauthorized
+    case forbidden
     case rateLimited(retryAfterMs: Int?)
     case backendUnavailable
     case malformedResponse(String)
