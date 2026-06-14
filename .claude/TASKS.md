@@ -136,7 +136,7 @@
 > User story see [STORIES.md](STORIES.md). DoD: transcript → /v1/voice/intent → reply bubble + 10-turn history.
 
 - [x] **E2.1** (2026-06-14): `Turn` value-type (`Sources/VoiceAssistant/Models/Turn.swift`) + `TurnView` SwiftUI render (`Sources/VoiceAssistant/UI/TurnView.swift`). ReplyOutcome enum (.pending/.success(Reply)/.failure(String)). 5 TurnTests green (Triangulation: empty pending → success transition → failure → identity uniqueness → createdAt capture). Full suite 16/16 green on mac-work (mac-home in deep hibernate, pmset sleep 0 still not applied). View not unit-tested per TESTING.md §1.
-- [ ] **E2.2**: `TurnsStore` ObservableObject — last-10 FIFO history.
+- [x] **E2.2** (2026-06-14): `TurnsStore` @Observable class (`Sources/VoiceAssistant/Models/TurnsStore.swift`). FIFO with default `maxCount=10`, custom cap via init. `append(_:)` drops oldest on overflow, `updateReply(id:to:)` mutates in place / no-op on missing id. 6 TurnsStoreTests green. Full suite 22/22 green on mac-work.
 - [ ] **E2.3**: DispatcherAdapter real impl — `/v1/voice/intent` POST via AsyncHTTPClient + error paths (401/429/503/timeout).
 - [ ] **E2.4**: ContentView pipeline — transcript → DispatcherAdapter.send → TurnsStore.append.
 - [ ] **E2.5**: Keychain `TokenStore` (BACKEND_TOKEN) + first-launch onboarding prompt.
