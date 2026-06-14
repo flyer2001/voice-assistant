@@ -42,8 +42,7 @@ case "mock":
 case "live":
     let urlStr = env["WHISPER_URL"] ?? "http://192.168.88.13:8000"
     sttProvider = { bytes, _ in
-        let whisperURL = URL(string: urlStr)!
-        let relay = WhisperHTTPRelay(baseURL: whisperURL)
+        let relay = WhisperHTTPRelay(baseURL: urlStr)
         return try await relay.transcribe(audio: bytes)
     }
 default:

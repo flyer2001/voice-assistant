@@ -1,4 +1,4 @@
-// swift-tools-version:5.10
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
@@ -23,6 +23,8 @@ let package = Package(
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "MultipartKit", package: "multipart-kit"),
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
             ]
         ),
         .target(

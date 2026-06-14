@@ -117,16 +117,16 @@
 
 - [x] **E1.1**: spec POST /v1/voice/audio in specs/backend-protocol.md (3ec85ee).
 - [x] **E1.2**: backend mock STT handler — 3 slices: handler + multipart + AudioLimits. 8 tests (5f1291a).
-- [~] **E1.3**: real Whisper via FastAPI on win-home — **partially done 2026-06-14**:
-  - ✅ FastAPI server (`C:/Users/Serg/whisper-server/server.py`) deployed, cuda+turbo, real RU smoke
-    "Привет, тестируем распознавание речи через Виспер" → точный transcript, 1.8s RTT
-  - ✅ Backend Swift `WhisperHTTPRelay` written, `main.swift` STT_MODE=live wired (compiles green)
-  - ❌ **runtime block**: `voice-service` in live mode crashes on macOS 26.4 with EXC_BAD_ACCESS
-    in `swift_getTypeByMangledName → type metadata accessor for Application` (Hummingbird).
-    Mock mode same binary works fine. Probably a Swift generic specialization or runtime
-    type metadata edge case introduced by capturing URLSession in sttProvider closure.
-    Needs separate debug session — clean rebuild didn't help.
-  - Workaround for E2E: keep `STT_MODE=mock` until E1.3 debugged.
+- [x] **E1.3**: real Whisper via FastAPI on win-home — **DONE 2026-06-14**:
+  - ✅ FastAPI server (`C:/Users/Serg/whisper-server/server.py`) deployed, CUDA + large-v3-turbo
+  - ✅ Backend Swift `WhisperHTTPRelay` on AsyncHTTPClient (Hummingbird-compatible async stack)
+  - ✅ `main.swift` STT_MODE=live wires relay through sttProvider closure
+  - ✅ E2E loopback: mac-home backend → win-home Whisper → точный RU transcript «Привет,
+    тестируем распознавание речи через Виспер.», ~6.8s cold (CUDA warmup), <2s warm
+  - Diagnosis: initial URLSession-based relay crashed Swift runtime on macOS 26.4 in
+    Hummingbird's async handler context (EXC_BAD_ACCESS in type metadata accessor for
+    Application). Spike `hb-spike` reproduced fix with AsyncHTTPClient.shared. Backported.
+  - Package.swift bumped to swift-tools 6.0 (was 5.10) — matches current Xcode 26 Swift 6.2.
 - [x] **E1.4**: iOS STTUploader (URLSession multipart, typed error mapping, 9 tests via URLProtocol mock) — 57f31df.
 - [x] **E1.5**: ContentView wire — capture.stop() → STTUploader.upload → footer renders transcript / typed error (08d94a0).
 - [x] **E1.6**: E2E smoke — backend in mock mode on mac-home, curl from VDS via WG returned `[mock] echo 2048 bytes from vds-curl-smoke`, 180ms RTT, server logged 200 OK. iOS sim tap manual-verified by Sergey.
