@@ -42,7 +42,7 @@ struct DispatcherAdapterTests {
             timestamp: Date(timeIntervalSince1970: 1_750_000_000)
         ))
 
-        let body = MockURLProtocol.lastBody ?? Data()
+        let body = DispatcherMockURLProtocol.lastBody ?? Data()
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(json["text"] as? String == "привет")
         #expect(json["client_id"] as? String == "iphone-tester")
@@ -128,18 +128,63 @@ struct DispatcherAdapterTests {
     }
 }
 
-// MARK: - Test helpers (reuses MockURLProtocol from STTUploaderTests)
+// MARK: - Test helpers
 
 private func makeAdapter(
     handler: @escaping @Sendable (URLRequest) -> (HTTPURLResponse, Data)
 ) -> DispatcherAdapter {
-    MockURLProtocol.handler = handler
+    DispatcherMockURLProtocol.handler = handler
     let config = URLSessionConfiguration.ephemeral
-    config.protocolClasses = [MockURLProtocol.self]
+    config.protocolClasses = [DispatcherMockURLProtocol.self]
     let session = URLSession(configuration: config)
     return DispatcherAdapter(
         baseURL: URL(string: "https://test.invalid")!,
         token: "test-token",
         session: session
     )
+}
+
+/// Dedicated URLProtocol stub for this suite. STTUploaderTests use a
+/// sibling MockURLProtocol with the same static-handler pattern; Swift
+/// Testing parallelizes suites, so a shared protocol class would let
+/// handler assignments race. Each suite owns its own subclass.
+final class DispatcherMockURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) -> (HTTPURLResponse, Data))?
+    nonisolated(unsafe) static var lastBody: Data?
+    nonisolated(unsafe) static var lastRequest: URLRequest?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        Self.lastRequest = request
+        Self.lastBody = request.httpBody ?? readStream(request.httpBodyStream)
+        return true
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+        let (response, data) = handler(request)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private func readStream(_ stream: InputStream?) -> Data {
+    guard let stream else { return Data() }
+    stream.open()
+    defer { stream.close() }
+    var data = Data()
+    let bufSize = 4096
+    var buffer = [UInt8](repeating: 0, count: bufSize)
+    while stream.hasBytesAvailable {
+        let read = stream.read(&buffer, maxLength: bufSize)
+        if read <= 0 { break }
+        data.append(buffer, count: read)
+    }
+    return data
 }
