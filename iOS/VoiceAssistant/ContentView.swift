@@ -7,19 +7,12 @@ struct ContentView: View {
     @State private var lastError: String = ""
     @State private var lastTrigger: TriggerSource = .none
     @State private var capture: AudioCapture = LiveAudioCapture()
-    @State private var uploader: STTUploader = LiveSTTUploader(
-        // Dev default: backend running on the mac-home host of the simulator.
-        // iOS Simulator routes localhost to its host. Real device / production
-        // overrides via secrets.local or Keychain (E2.5 ticket).
-        baseURL: URL(string: "http://127.0.0.1:8089")!,
-        token: "dev-token"
-    )
-    @State private var dispatcher: DispatcherAdapter = DispatcherAdapter(
-        baseURL: URL(string: "http://127.0.0.1:8089")!,
-        token: "dev-token"
-    )
     @State private var turnsStore = TurnsStore()
+    @State private var tokenStore: any TokenStore = KeychainTokenStore()
+    @State private var token: String = ""
+    @State private var showOnboarding: Bool = false
     private let clientId = "iphone-sim-dev"
+    private let backendBaseURL = URL(string: "http://127.0.0.1:8089")!
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,6 +23,8 @@ struct ContentView: View {
             holdButton
                 .frame(width: 200, height: 200)
                 .gesture(holdGesture)
+                .disabled(token.isEmpty)
+                .opacity(token.isEmpty ? 0.4 : 1.0)
 
             Text(state.label)
                 .font(.title3)
@@ -47,7 +42,7 @@ struct ContentView: View {
         .background(
             KeyMonitor(
                 onKeyDown: { (code: UIKeyboardHIDUsage) in
-                    guard code == .keyboardF15, state == .idle else { return }
+                    guard code == .keyboardF15, state == .idle, !token.isEmpty else { return }
                     beginRecording(trigger: .keyboard)
                 },
                 onKeyUp: { (code: UIKeyboardHIDUsage) in
@@ -56,15 +51,36 @@ struct ContentView: View {
                 }
             )
         )
+        .task {
+            await loadTokenOrPromptOnboarding()
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView(tokenStore: tokenStore) { saved in
+                token = saved
+                showOnboarding = false
+            }
+            .interactiveDismissDisabled(token.isEmpty)
+        }
     }
 
     private var header: some View {
         VStack(spacing: 4) {
             Text("Voice Assistant")
                 .font(.title2.weight(.semibold))
-            Text("v0.1 — hold-to-speak")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("v0.1 — hold-to-speak")
+                if !token.isEmpty {
+                    Button {
+                        showOnboarding = true
+                    } label: {
+                        Image(systemName: "key")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -89,7 +105,7 @@ struct ContentView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     if turnsStore.turns.isEmpty {
-                        Text("no turns yet")
+                        Text(token.isEmpty ? "configure token to begin" : "no turns yet")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 24)
@@ -129,13 +145,26 @@ struct ContentView: View {
     private var holdGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { _ in
-                guard state == .idle else { return }
+                guard state == .idle, !token.isEmpty else { return }
                 beginRecording(trigger: .touch)
             }
             .onEnded { _ in
                 guard state == .recording else { return }
                 finishRecording()
             }
+    }
+
+    private func loadTokenOrPromptOnboarding() async {
+        do {
+            if let saved = try tokenStore.read() {
+                token = saved
+            } else {
+                showOnboarding = true
+            }
+        } catch {
+            lastError = "keychain: \(error)"
+            showOnboarding = true
+        }
     }
 
     private func beginRecording(trigger: TriggerSource) {
@@ -156,6 +185,7 @@ struct ContentView: View {
     private func finishRecording() {
         state = .processing
         let trigger = lastTrigger
+        let currentToken = token
         Task { @MainActor in
             let bytes: Data
             do {
@@ -167,6 +197,7 @@ struct ContentView: View {
                 return
             }
 
+            let uploader = LiveSTTUploader(baseURL: backendBaseURL, token: currentToken)
             let transcript: String
             do {
                 let response = try await uploader.upload(
@@ -185,6 +216,7 @@ struct ContentView: View {
                 return
             }
 
+            let dispatcher = DispatcherAdapter(baseURL: backendBaseURL, token: currentToken)
             let pipeline = IntentPipeline(dispatcher: dispatcher, store: turnsStore)
             await pipeline.handle(transcript: transcript, clientId: clientId)
 
