@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/projects/agentops/bin/wrap-with-hb.sh"
+          },
+          {
+            "type": "command",
+            "command": "/root/projects/agentops/bin/loop-detector.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/projects/agentops/bin/agentops-dispatcher-hook.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

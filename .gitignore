@@ -80,3 +80,6 @@ bench/scripts/tts/.venv/
 bench/scripts/tts/__pycache__/
 bench/results/tts/
 Sources/VoiceAssistant/Resources/whisperkit/openai_whisper-*/
+
+# agentops install backups
+.claude/backups/
