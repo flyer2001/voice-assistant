@@ -1,3 +1,46 @@
+## [2026-06-18] S2 Forward to Happy + bubble UI CLOSED — 6 E-tickets, 41/41 SPM, real E2E green
+
+**Сделано:**
+- ✅ **E2.1** Turn value-type (`Sources/VoiceAssistant/Models/Turn.swift`) + ReplyOutcome enum (.pending/.success(Reply)/.failure(String)) + TurnView SwiftUI (`Sources/VoiceAssistant/UI/TurnView.swift`) — 5 TurnTests, .gitignore разлепил `Models/` (был glob, теперь root + Resources/whisperkit only)
+- ✅ **E2.2** TurnsStore @Observable class — FIFO cap=10 (configurable), append/updateReply — 6 TurnsStoreTests
+- ✅ **E2.3** DispatcherAdapter HTTP real impl — POST /v1/voice/intent + Bearer + JSON {text, client_id, ts ISO8601} + 15s timeout per spec. BackendError +`.forbidden`. Error matrix 401/403/429/503/500-599. 9 DispatcherAdapterTests + dedicated `DispatcherMockURLProtocol` (sibling suite раздружили — Swift Testing параллелит suites, shared static mock racing)
+- ✅ **E2.4** IntentPipeline glues transcript → BackendAdapter.send → TurnsStore. Pending turn append BEFORE await чтобы query bubble сразу видна. Error labeling в pipeline (`label(for: BackendError)`) shared между будущими клиентами. ContentView refactored: TurnsStore @State + ScrollView/LazyVStack of TurnView + autoscroll. 5 IntentPipelineTests + FakeBackendAdapter
+- ✅ **E2.5** Keychain integration — `TokenStore` protocol + `InMemoryTokenStore` (NSLock guarded, init(initial:) seed) + `KeychainTokenStore` (kSecClassGenericPassword, idempotent write via update-then-add). `OnboardingView` sheet (NavigationStack + monospaced TextField + interactiveDismissDisabled when empty). ContentView wire: .task on launch → read() → если nil, sheet; hold-button disabled until token; header key-icon rotation. 5 InMemoryTokenStoreTests
+- ✅ **E2.6** End-to-end smoke via curl from mac-home loopback. Whisper FastAPI **relocated to ubuntu-home** (dual-boot, RTX 3070 CUDA, faster-whisper-large-v3-turbo). Backend restarted (`STT_MODE=live WHISPER_URL=http://192.168.88.13:8000`). Sample `assets/bench/raw/1a-quiet.m4a` (14.6s RU) → S1 200 OK 640ms «Сегодня вторник, нужно успеть в магазин...», S2 200 OK 8ms `[live reply] ...`
+- ✅ **Infra fixes (вне S2-scope, но closed по пути):**
+  - LAN adapter swap на mac-home (Thunderbolt 2.5Gbps Realtek RTL8156) — **новый MAC 74:D7:AE:00:3A:64**, IP 192.168.88.35 (Wi-Fi MAC 00:E0:6C:6A:63:44 теперь mortв)
+  - ubuntu-home Whisper setup — venv на NTFS, `nvidia-cublas-cu12 + nvidia-cudnn-cu12` (ctranslate2 нуждается в CUDA 12 runtime, а driver был 13.2), `LD_LIBRARY_PATH` explicit
+  - caffeinate LaunchAgent проблематика — bg ssh trick рабочий для удалённого удержания awake (см. memory)
+  - XcodeGen build from source (mac-home + mac-work), regen iOS project включает новые UI/Models/Backend файлы
+- ✅ **Tests:** 41/41 SPM green (Turn 5 + TurnsStore 6 + DispatcherAdapter 9 + IntentPipeline 5 + TokenStore 5 + старые 11). iOS BUILD SUCCEEDED on mac-home + mac-work.
+- ✅ **Memory updates:** reference_mac_home_clamshell обновлён про bg ssh trick + LaunchAgent disabled status + Sequoia/Tahoe non-interactive bug. Новый reference_ubuntu_home_whisper. Global `~/.claude/docs/home-machines.md` обновлён про caffeinate -dims vs -di + macOS ssh non-interactive bug.
+
+**Решения:**
+- **URLSession в iOS, AsyncHTTPClient только в backend** — carry-over предупреждал «AsyncHTTPClient в S2», но crash macOS 26.4 был Hummingbird-async-handler-specific, iOS client safe. Не плодим deps.
+- **Turn модель в Models/, View в UI/** — clean separation. Modeli pure value, View не unit-tested per TESTING.md §1.
+- **Goodhart-резистентность tests:** TurnTests тестируют публичный API только. Header check Content-Type точное равенство — намеренный цемент (wire contract).
+- **Whisper на ubuntu-home** — dual-boot машина, NTFS shared даёт огромный bonus: HF cache (5 моделей включая large-v3-turbo) уже скачан, server.py Linux-compatible. Не дублируем models на ext4.
+- **`OnboardingView` sheet sees only `TokenStore` protocol** — UI testable через InMemoryTokenStore fake, Keychain тестируется manual в sim per TESTING.md §"mock только boundaries".
+
+**Открытое:**
+- **S3** (TTS reply via 3-tier Yandex/XTTS/Apple) — 8 E-тикетов в `bench/results/FINAL-CHOICE-TTS-2026-06-14.md` (E3.1–E3.8). Tier 1 cloud Yandex как primary, XTTS-v2 secondary, Apple Milena fallback. API key Yandex уже в `~/.config/voice-bench/yandex_speechkit.env` на mac-home.
+- **Real Happy session bind** в backend `/v1/voice/intent` — сейчас отвечает `[live reply] <transcript>` echo (B-серии stub), реальный HappyInjectMessenger не запускается. Отдельный B-ticket: HappyState lookup по cwd `/Users/flyer2001/projects/voice-assistant/` (или передать override через env).
+- **Backend persistence:** `voice-service` живёт пока bg ssh держит его, и в bad state после многократных mac sleep циклов (PID 44156 был wedged, потребовался pkill+restart). Persistent LaunchDaemon — actionable. Whisper FastAPI на ubuntu-home аналогично — systemd unit на actionable.
+- **macOS Sequoia/Tahoe ssh non-interactive bug** — `nohup`/`screen`/`setsid` не выживают close of ssh; sustained work через mac-home требует либо открытой крышки, либо bg ssh trick (`Bash run_in_background:true`), либо NOPASSWD sudo + LaunchDaemon. Sergey может выбрать вариант.
+
+**Файлы:**
+- Sources/VoiceAssistant/Models/Turn.swift, TurnsStore.swift (новые)
+- Sources/VoiceAssistant/UI/TurnView.swift (новая)
+- Sources/VoiceAssistant/Backend/{BackendAdapter,DispatcherAdapter,IntentPipeline,TokenStore,KeychainTokenStore}.swift (DispatcherAdapter — переписан; rest — новые)
+- iOS/VoiceAssistant/ContentView.swift (pipeline refactor + Keychain wire)
+- iOS/VoiceAssistant/OnboardingView.swift (новая)
+- Tests/VoiceAssistantTests/{TurnTests,TurnsStoreTests,DispatcherAdapterTests,IntentPipelineTests,TokenStoreTests}.swift (новые)
+- .claude/{TASKS,CHANGELOG,STORIES}.md (TASKS S2 closed)
+- .gitignore (anchor /Models/ → root + Resources/whisperkit/)
+- Глобально: ~/.claude/docs/home-machines.md (macOS ssh non-interactive + caffeinate -dims)
+- Memory: reference_mac_home_clamshell, reference_ubuntu_home_whisper (new), MEMORY.md index
+
+
 ## [2026-06-14] S1 Speech echo CLOSED end-to-end + win-home Whisper turbo live
 
 **Сделано:**
