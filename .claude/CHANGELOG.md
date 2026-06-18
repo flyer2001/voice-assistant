@@ -1,3 +1,28 @@
+## [2026-06-18] TASKS.md cleanup — закрытые `[x]` вычищены, контекст в CHANGELOG/specs/bench
+
+**Сделано:**
+- ✅ Применил новое глобальное правило `~/.claude/CLAUDE.md` «TASKS.md — только открытые задачи» к проекту voice
+- ✅ Подсчёт до: 57 `[x]` closed entries в `.claude/TASKS.md` (219 строк), все sprint summaries `v0.0`, `v0.0 mac-home prep`, `v0.1 PRE-REQ STT decision`, `B1-B8`, `B-Happy-bind`, `S1`, `S2 E2.1-E2.6`
+- ✅ Прошёл `CHANGELOG.md` (228 строк, 4 entries: 2026-06-08 v0.0, 2026-06-10/11 STT bench, 2026-06-11 backend B1-B8, 2026-06-14 S1, 2026-06-18 S2) — весь history-контекст уже там, постоянный контекст (spec/bench reports) уже в `specs/backend-protocol.md` + `bench/results/REPORT-*.md` + `bench/results/FINAL-CHOICE-TTS-*.md`
+- ✅ Переписал `.claude/TASKS.md`: header уточнён («Только открытые: `[ ]`/`[~]`/`[!]`. Закрытые — в CHANGELOG»). Свод-строка вместо sprint dumps: «Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9, S1, S2 — детали в CHANGELOG.»
+- ✅ Подсчёт после: **0 `[x]`** entries (требование выполнено), 34 open + 1 in-progress, 114 строк (с 219 → -105)
+- ✅ Сохранены все открытые элементы: mac-home onboarding 3 items, G0 Gemini deferred, W4-Speech debug deferred, B9-deploy, G2-real-Happy (rename из «G2 next»), V0–V10 VK transport (full block), C3 in-progress + C9 backlog, G1+G3 glue, T1-T4 tests, v0.2 backlog, Backlog post v0.1, Open questions/risks, Operational TODO post-S1, Next stories (S3 + B-Happy-real-bind)
+
+**Решения:**
+- **Не добавил локальное правило в проектный `CLAUDE.md`** — глобальное правило self-explanatory, voice не требует override (sprint workflow стандартный, нет специфики типа cashflow TPP-ladder)
+- **G2 разделён на 2 ticket'а** — `G2-real-Happy` (real iPhone tap E2E с live Happy) переехал в Backend post-S2 секцию, manual smoke `G2` (cashflow JSONL probe) убран (S2 E2.6 покрыл смежный сценарий — реальный E2E уже зелёный, осталось только bind real Happy session, не smoke)
+- **C3 [~] сохранён**, не удалён — это in-progress (Mac run target отложен sim-only), не закрыт. По глобальному правилу `[~]` это open variant.
+- **Sprint summary одной строкой** vs ссылка на CHANGELOG: выбрал один inline указатель в header («Сделано: ...») чтобы reader сразу видел scope закрытых без открытия CHANGELOG. CHANGELOG — для деталей.
+
+**Открытое:**
+- В `git status` ~8 файлов B9 EnvComposition still uncommitted (вне scope этой session — это работа из прошлой /endsession 2026-06-18 commit ff686f0, видимо partial commit). Sergey: разгребай отдельным `voice:` commit'ом, не блокер для cleanup.
+- В TASKS лежит `bench/results/gemma/` как untracked — gitignore селективно для CSV. Не блокер.
+- Memory updates не делал — cleanup task не требовал.
+
+**Файлы:**
+- .claude/TASKS.md (219 → 114 строк, -105 lines, 0 `[x]`)
+- .claude/CHANGELOG.md (этот prepend)
+
 ## [2026-06-18] S2 Forward to Happy + bubble UI CLOSED — 6 E-tickets, 41/41 SPM, real E2E green
 
 **Сделано:**
