@@ -1,5 +1,7 @@
 import Foundation
+import Logging
 import VoiceServiceCore
+import VKAdapter
 
 let env = ProcessInfo.processInfo.environment
 
@@ -25,4 +27,103 @@ do {
 
 let config = buildConfiguration(token: token, plan: plan)
 let app = VoiceServiceApp.make(config: config, host: host, port: port)
+
+// ── VK voice bot — optional background loop ──────────────────────────
+//
+// Enabled via VK_BOT_ENABLED=true + /etc/vk-bot.env (token + group_id +
+// owner_ids). See specs/vk-bot-mvp.md.
+
+if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
+    let logger = Logger(label: "vk-bot")
+    let vkConfig: VKConfig
+    do { vkConfig = try VKConfig.fromEnvironment(env) } catch {
+        fatalError("VK_BOT_ENABLED=true but config invalid: \(error)")
+    }
+
+    guard case .live(let targetCwd) = plan.happy else {
+        fatalError("VK_BOT_ENABLED requires HAPPY_MODE=live (got \(plan.happy))")
+    }
+    let whisperURL: String
+    switch plan.stt {
+    case .live(let u): whisperURL = u
+    default: fatalError("VK_BOT_ENABLED requires STT_MODE=live (got \(plan.stt))")
+    }
+
+    let http = LiveVKHTTPClient()
+    let api = VKAPIClient(token: vkConfig.botToken, httpClient: http, logger: logger)
+    let messenger = LiveHappyInjectMessenger()
+    let storage = AudioStorage(
+        rawDir: URL(fileURLWithPath: env["VOICE_AUDIO_STORAGE"] ?? "/var/lib/voice-bot/raw"),
+        auditPath: URL(fileURLWithPath: env["VOICE_AUDIT_LOG"] ?? "/var/lib/voice-bot/audit.jsonl")
+    )
+
+    let pipeline = VoiceMessagePipeline(
+        targetCwd: targetCwd,
+        ownerIds: Set(vkConfig.ownerIds.map { Int64($0) }),
+        download: { url in
+            try await http.send(method: "GET", url: url, headers: [:], body: nil)
+        },
+        transcribe: { bytes in
+            let relay = WhisperHTTPRelay(baseURL: whisperURL)
+            return try await relay.transcribe(audio: bytes).text
+        },
+        happyInject: { text, cwd in
+            try await messenger.send(text: text, targetCwd: cwd, timeout: .seconds(30))
+        },
+        vkSend: { peer, text in
+            _ = try await api.sendMessage(peerId: peer, text: text)
+        },
+        storage: storage
+    )
+
+    Task.detached {
+        await runVKLoop(api: api, http: http, config: vkConfig, pipeline: pipeline, logger: logger)
+    }
+    logger.info("VK bot loop started", metadata: [
+        "group_id": .stringConvertible(vkConfig.groupId),
+        "owner_ids": .string(vkConfig.ownerIds.sorted().map(String.init).joined(separator: ","))
+    ])
+}
+
 try await app.runService()
+
+
+/// Long-poll forever. Refetches server on `failed:2|3`. Dispatches each
+/// message_new in a child Task so slow downloads don't block polling.
+func runVKLoop(
+    api: VKAPIClient, http: any VKHTTPClient, config: VKConfig,
+    pipeline: VoiceMessagePipeline, logger: Logger
+) async {
+    while !Task.isCancelled {
+        let server: VKLongPollServer
+        do { server = try await api.getLongPollServer(groupId: config.groupId) }
+        catch {
+            logger.error("getLongPollServer failed, retry in 5s", metadata: ["err": .string("\(error)")])
+            try? await Task.sleep(for: .seconds(5))
+            continue
+        }
+        let client = VKLongPollClient(server: server, httpClient: http)
+        let parser = VKEventParser()
+
+        loop: while !Task.isCancelled {
+            let outcome: VKPollOutcome
+            do { outcome = try await client.nextBatch() }
+            catch {
+                logger.error("longpoll batch failed, refetching server", metadata: ["err": .string("\(error)")])
+                break loop
+            }
+            switch outcome {
+            case .needsServerRefetch:
+                break loop
+            case .updates(let updates):
+                for u in updates {
+                    guard u.type == "message_new", let msg = u.object?.message else {
+                        _ = parser.parse(u) // log-only side effect skipped
+                        continue
+                    }
+                    Task { await pipeline.handle(u, message: msg) }
+                }
+            }
+        }
+    }
+}
