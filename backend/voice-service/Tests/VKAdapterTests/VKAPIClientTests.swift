@@ -91,21 +91,20 @@ final class MockVKHTTPClient: VKHTTPClient, @unchecked Sendable {
     private(set) var calls: [Call] = []
 
     func queueResponse(json: String) {
-        lock.lock(); defer { lock.unlock() }
-        responses.append(json.data(using: .utf8)!)
+        lock.withLock { responses.append(json.data(using: .utf8)!) }
     }
 
     func queueResponse(data: Data) {
-        lock.lock(); defer { lock.unlock() }
-        responses.append(data)
+        lock.withLock { responses.append(data) }
     }
 
     func send(method: String, url: String, headers: [String: String], body: Data?) async throws -> Data {
-        lock.lock(); defer { lock.unlock() }
-        calls.append(Call(method: method, url: url, headers: headers, body: body))
-        guard !responses.isEmpty else {
-            throw NSError(domain: "MockVKHTTPClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "no queued response"])
+        try lock.withLock {
+            calls.append(Call(method: method, url: url, headers: headers, body: body))
+            guard !responses.isEmpty else {
+                throw NSError(domain: "MockVKHTTPClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "no queued response"])
+            }
+            return responses.removeFirst()
         }
-        return responses.removeFirst()
     }
 }

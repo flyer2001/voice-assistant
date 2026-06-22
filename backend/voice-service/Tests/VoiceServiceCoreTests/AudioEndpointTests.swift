@@ -142,14 +142,15 @@ struct AudioEndpointTests {
             )
         )
 
-        var body = ""
-        body += "--\(boundary)\r\n"
-        body += "Content-Disposition: form-data; name=\"client_id\"\r\n\r\n"
-        body += "iphone-test\r\n"
-        body += "--\(boundary)\r\n"
-        body += "Content-Disposition: form-data; name=\"ts\"\r\n\r\n"
-        body += "2026-06-14T00:00:00Z\r\n"
-        body += "--\(boundary)--\r\n"
+        var bodyBuilder = ""
+        bodyBuilder += "--\(boundary)\r\n"
+        bodyBuilder += "Content-Disposition: form-data; name=\"client_id\"\r\n\r\n"
+        bodyBuilder += "iphone-test\r\n"
+        bodyBuilder += "--\(boundary)\r\n"
+        bodyBuilder += "Content-Disposition: form-data; name=\"ts\"\r\n\r\n"
+        bodyBuilder += "2026-06-14T00:00:00Z\r\n"
+        bodyBuilder += "--\(boundary)--\r\n"
+        let body = bodyBuilder
 
         try await app.test(.router) { client in
             try await client.execute(

@@ -12,7 +12,7 @@ struct ContentView: View {
     @State private var token: String = ""
     @State private var showOnboarding: Bool = false
     private let clientId = "iphone-sim-dev"
-    private let backendBaseURL = URL(string: "http://127.0.0.1:8089")!
+    private let backendBaseURL = URL(string: "http://10.10.0.1:8089")!
 
     var body: some View {
         VStack(spacing: 0) {

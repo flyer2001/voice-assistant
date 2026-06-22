@@ -16,6 +16,8 @@ sudo chmod 600 /etc/voice-backend.env
 sudo vim /etc/voice-backend.env
 # set VOICE_BACKEND_TOKEN=$(openssl rand -hex 32)
 # set VOICE_TARGET_CWD=/root/projects/cashflow
+# set HAPPY_MODE=live   (explicit; or leave unset — defaults to live when cwd is set)
+# optional: set STT_MODE=live + WHISPER_URL=… to wire /v1/voice/audio
 
 # 3. Install unit + enable
 sudo cp deploy/voice-backend.service /etc/systemd/system/voice-backend.service
@@ -42,8 +44,23 @@ curl -X POST http://127.0.0.1:8089/v1/voice/intent \
   -d '{"text":"какой статус cashflow сегодня","client_id":"smoke","ts":"2026-06-11T15:00:00.000Z"}'
 ```
 
-Expect: HTTP 200 с `{"reply":"...","latency_ms":N}` если есть running Happy
-session для `VOICE_TARGET_CWD`. Иначе 503 `backend_unavailable`.
+Expect: HTTP 200 с `{"reply":"...","latency_ms":N}`. В `HAPPY_MODE=live` —
+из running Happy сессии для `VOICE_TARGET_CWD` (или 503 `backend_unavailable`
+если её нет). В `HAPPY_MODE=echo` — `[echo reply] <text>` для smoke без
+зависимости от Happy state.
+
+## Modes recap
+
+| HAPPY_MODE | STT_MODE | `/v1/voice/intent` | `/v1/voice/audio` |
+|------------|----------|--------------------|-------------------|
+| `live`     | `live`   | real Happy inject  | real Whisper (CUDA) |
+| `live`     | `mock`   | real Happy inject  | echo bytes-count |
+| `live`     | unset    | real Happy inject  | 503 stt_unavailable |
+| `echo`     | `live`   | `[echo reply] …`   | real Whisper |
+| unset      | unset    | echo (fallback)    | 503 |
+
+STT и Happy режимы независимы — bumped в commit 2026-06-18 (B-Happy-bind),
+до этого `STT_MODE=live` принудительно отключал real Happy inject.
 
 ## Logs
 

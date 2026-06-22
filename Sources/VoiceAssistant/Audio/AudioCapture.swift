@@ -32,6 +32,12 @@ public final class LiveAudioCapture: AudioCapture {
         try await ensurePermission()
         try configureSession()
 
+        // iOS 26 simulator returns a 0Hz/0ch outputFormat from inputNode until
+        // the engine has been prepared. Reading the format before prepare()
+        // makes installTap raise IsFormatSampleRateAndChannelCountValid →
+        // uncaught NSException → SIGABRT.
+        engine.prepare()
+
         let input = engine.inputNode
         let sourceFormat = input.outputFormat(forBus: 0)
 
@@ -54,7 +60,6 @@ public final class LiveAudioCapture: AudioCapture {
             try? file.write(from: buffer)
         }
 
-        engine.prepare()
         do {
             try engine.start()
         } catch {
