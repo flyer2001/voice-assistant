@@ -2,113 +2,113 @@
 
 > Active sprint. Only open items: `[ ]` open, `[~]` in-progress, `[!]` blocked.
 > Закрытые задачи — в `.claude/CHANGELOG.md` (prepend через `/endsession`).
-> Сделано: v0.0 foundation + mac-home prep, W1–W5 STT bench (bench/results/REPORT-2026-06-10.md, REPORT-LONGFORM-2026-06-11.md), backend B1–B9, S1 Speech echo, S2 Forward to Happy + bubble UI — детали в CHANGELOG.
+> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl — детали в CHANGELOG.
 
 ---
 
-## v0.1 client mac-home onboarding
+## Scope shift 2026-06-22
 
-- [ ] First mac-home Claude session — seed reading: README.md → CLAUDE.md → docs/mac-home-setup.md → .claude/TESTING.md → .claude/TASKS.md → MEMORY.md
-- [ ] Spike: `claude mcp list` на mac-home — verify xcodebuild + cupertino MCPs available
-- [ ] Spike: build empty iOS app target из Xcode через XcodeBuildMCP, verify simulator boots + screenshot работает
+iOS/macOS клиент отложен в Phase 2. **MVP неделя 22-29.06 = VK transport only**:
+голос в → Whisper → Happy inject → текстовый reply в VK + echo транскрипцию обратно.
+TTS skip полностью (см. challenge в session JSONL `MVP voice scope обсуждение`).
 
----
-
-## v0.1 — E2E (DoD: capture→reply ≤ 4с)
-
-### Deferred decisions
-
-- [ ] **G0**: Gemini LLM role — v0.3 candidate (intent classifier) ИЛИ post-STT rewrite. Не блокирует v0.1.
-- [ ] **W4-Speech**: SpeechTranscriber debug (iOS 26.5 empty output) — отложено.
-
-### Backend post-S2
-
-- [ ] **B9-deploy**: `swift build -c release` на mac-home + restart background ssh holding voice-service после EnvComposition split (см. CHANGELOG 2026-06-18 «B-Happy-bind»).
-- [ ] **G2-real-Happy**: Real iPhone tap E2E с `STT_MODE=live` + `HAPPY_MODE=live` + `VOICE_TARGET_CWD=/root/projects/cashflow` — закрывает manual AC story S2.
-
-### Backend extension — VK transport (V-tier)
-
-> Reuse: `tg-client/feature/vk-bot-bridge` спайк (1055 LOC Swift) + RFC v0.6.0 Long Poll migration. См. memory `reference_vk_bot_bridge_spike.md`.
-> **DoD V-phase**: voice in (через ВК) → STT → Happy inject → text reply → TTS → voice out (через ВК).
-
-- [ ] **V0**: Cherry-pick `Sources/BotBridge/` infrastructure из tg-client → `backend/voice-service/Sources/VKAdapter/`:
-  - VKAPIClient (REST messages.send) + adapt to AsyncHTTPClient (без Hummingbird для Long Poll)
-  - VKModels (Codable types) + extend с AudioMessageAttachment + DocsSaveResponse shapes
-  - BotSessionState (per-owner state)
-  - Battle findings B-02/B-05/B-08/B-09 (см. spike RFC раздел 1.2)
-- [ ] **V1**: Long Poll loop — `VKLongPollClient` actor. groups.getLongPollServer + poll {server}?act=a_check&wait=25. Handle failed:1 (ts), failed:2,3 (refetch). TDD: MockHTTPClient.
-- [ ] **V2**: Receive — parse `message_new` events. Text → HappyInjectMessenger.send. audio_message attachment → save link_ogg URL для V3.
-- [ ] **V3**: Voice STT — download link_ogg → IF VK transcript_state="done" use it ELSE send to Whisper turbo (ubuntu-home endpoint). Audit log decision.
-- [ ] **V3a**: FastAPI Whisper turbo на ubuntu-home уже стоит (см. memory `reference_ubuntu_home_whisper`) — только wire backend client.
-- [ ] **V4**: Send text reply — VKAPIClient.messages.send peer_id=<owner_id> message=<text>.
-- [ ] **V5**: TTS install — Piper TTS на VDS (`~/piper/piper/piper` + voices/ru_RU-irina-medium.onnx + en_US-lessac-medium.onnx). См. memory `reference_tts_piper.md`.
-- [ ] **V6**: TTS pipeline — Swift Process wrapping `piper --output_raw | ffmpeg -c:a libopus -b:a 24k -ar 16000 -ac 1 -f ogg`. Streaming pipe.
-- [ ] **V7**: RU text normalizer ДО TTS — `num2words[ru]` или Swift regex.
-- [ ] **V8**: Voice send pipeline — docs.getMessagesUploadServer (type=audio_message, peer_id) → multipart POST file → docs.save → messages.send + attachment=doc{owner_id}_{id}.
-- [ ] **V9**: E2E smoke — voice mailbox endpoint в личке VK community.
-- [ ] **V10**: Audit log JSON per request: `{owner_id, peer_id, cmd:"voice_intent", stt_source, stt_ms, inject_ms, tts_ms, total_ms, decision}` → /var/log/voice-vk.jsonl.
-
-### Client (iOS app) — backlog
-
-- [~] **C3**: Mac run target — отложено, sim-only сейчас (iPhone 17 на mac-home Xcode 26).
-- [ ] **C9**: secrets.local (Mac dev override) — backlog.
-
-### Glue / observability
-
-- [ ] **G1**: Latency measurement — клиент логгит `capture_ms + transcribe_ms + network_ms + backend_ms + render_ms`. Цель ≤ 4с total.
-- [ ] **G3**: First `/endsession close` cycle — CHANGELOG.md prepend, doc-апдейты, commit. (G2 разделён на G2-real-Happy выше + manual smoke ниже.)
-
-### Tests (TDD-discipline per `.claude/TESTING.md`)
-
-- [ ] **T1**: Unit-тесты per TDD-ladder (Triangulation Empty→Single→Multiple).
-- [ ] **T2**: Component тест — DispatcherAdapter ↔ URLProtocol mock — все error paths (401, 429 retry_after_ms, 503, timeout).
-- [ ] **T3**: E2E happy-path с FakeAudioSource + FakeTranscriber + URLProtocol mock backend.
-- [ ] **T4**: Latency budget test — fake-end-to-end в синтетическую 1с budget с fake-clock.
+Reasoning: VK bot = zero deployment на клиенте. Sergey говорит с любого устройства
+без iOS app, без provisioning, без WG client. V0-V4 уже на 80% сделаны (commits
+`6ddabbe` + `e03ce9c`). Whisper live на ubuntu-home. Backend live на VDS.
 
 ---
 
-## v0.2 (запланировано после v0.1 GREEN)
+## MVP_thin² — VK voice in / text out (target 22-29.06)
 
-- [ ] iOS client (порт macOS UI логики, hold-to-speak full-screen button)
-- [ ] Shared SwiftUI Bubble component
-- [ ] UI snapshot тесты state-dump style (Point-Free), НЕ raw image
-- [ ] Doc-drift tests (`Tests/voiceTests/DocDriftTests.swift`)
+> DoD: Sergey шлёт voice message в VK community DM → бот в течение 10s
+> отвечает (а) транскрипцией его речи (echo) и (б) ответом диспетчера-Claude
+> из running Happy session. Audio raw сохраняется для regression bench.
+
+### Phase 0 — spike checklist (день 1 утро)
+
+- [ ] **SP1**: VK voice message attachment shape — verify `audio_message`
+  object имеет `link_ogg` / `link_mp3` / `duration` / `transcript` /
+  `transcript_state`. Реальный probe на personal token.
+- [ ] **SP2**: VK transcript_state lifecycle — sometimes async, прилетает
+  `audio_message_transcript` event после `message_new`. Verify both paths.
+- [ ] **SP3**: Audio storage layout pick — `/var/lib/voice-bot/raw/<ts>-<msg_id>.ogg`
+  + `audit.jsonl` (append-only). Confirm filesystem perms + size growth budget.
+- [ ] **SP4**: Bot identity — owner_id Sergey'я, group_id community, VK API
+  token scope (messages + docs). Confirm не slip'ает в commit (env/secrets.local).
+- [ ] **SP5**: Happy target_cwd — `/root/projects/cashflow` (если running) или
+  отдельная dispatcher session. Confirm.
+
+### Phase 1 — E2E scenarios (текст, для согласования с Sergey)
+
+- [ ] **ES**: Дописать `specs/vk-bot-mvp.md` — 6-8 текстовых сценариев happy/error.
+  Не код. После approve → TDD ladder.
+
+### Phase 2 — TDD ladder (после approve ES)
+
+> Порядок: red E2E → red component → red unit → green обратно.
+
+- [ ] **V3**: Voice STT wire — download VK link_ogg → IF transcript_state=done
+  use VK transcript ELSE Whisper turbo. Save both в audit для compare.
+- [ ] **V4-echo**: Echo транскрипции обратно в VK DM **перед** inject в Happy.
+  Sergey видит «что бот услышал» сразу.
+- [ ] **V4-inject**: Happy inject с prefix `[voice from Sergey, src=vk|whisper, lang=ru]\n<text>`.
+  Reply из Happy → VK messages.send.
+- [ ] **V9**: E2E smoke реально через VK DM. 5 голосовых из dogfood.
+- [ ] **V10**: Audit log per request — `audit.jsonl` shape: `{ts, peer_id, msg_id, audio_path, vk_transcript, whisper_transcript, latency_ms, decision, happy_reply}`.
+
+### Phase 3 — Operational hardening (день 5)
+
+- [ ] **OP1**: Whisper FastAPI systemd unit на ubuntu-home (сейчас nohup, не
+  переживает reboot). См. CHANGELOG operational TODO.
+- [ ] **OP2**: voice-backend.service на VDS уже systemd (CHANGELOG 2026-06-18) —
+  verify reboot survival.
+- [ ] **OP3**: Cashflow Happy session keep-running (или auto-restart) на VDS.
+  Иначе inject fail.
 
 ---
 
-## Backlog (post v0.1)
+## Backlog (post-MVP)
 
-- v0.3 intent shortcuts (regex/keyword classification на VDS)
-- v0.4 TTS reply (AVSpeechSynthesizer, opt-in)
-- v0.5+ iOS Shortcut integration, Apple Watch companion, история (SwiftData)
-- Repo rename: `voice` → бренд (перед public-share)
-- License decision: AGPL-3.0 + commercial dual vs BSL vs proprietary
-- Hardware-key binding refactor: SwiftUI `.onKeyPress(phases: [.down, .up])` вместо
-  текущего `KeyMonitor` (UIViewControllerRepresentable + pressesBegan/Ended). API
-  доступен с iOS 17.4 — поднять deployment target, выкинуть ~80 строк UIKit-bridge.
-  Текущая реализация (commit a94ab30) работает на iOS 17.0.
-- Background PTT: custom BLE GATT device (ESP32-C3 / nRF52) если потребуется press
-  detection вне foreground — ZMK keyboard-mode foreground-only по дизайну iOS.
-  См. memory `reference_bt_button_ios_ptt.md`.
+### TTS reply (S3, отложено)
+
+- [ ] **S3.Yandex**: Tier 1 Yandex SpeechKit. См. `bench/results/FINAL-CHOICE-TTS-2026-06-14.md`.
+  Triggered только если text-out скучно после dogfood week.
+
+### iOS/macOS app (Phase 2, post-MVP)
+
+- [ ] iOS client reuse VK transport как `BackendAdapter` impl.
+- [ ] G2-real-Happy: iPhone tap E2E. Manual AC story S2.
+- [ ] G1: Latency measurement.
+- [ ] C9: secrets.local (Mac dev override).
+- [ ] Shared SwiftUI Bubble component между iOS + macOS.
+- [ ] UI snapshot тесты state-dump style.
+- [ ] Doc-drift tests.
+
+### Deferred
+
+- [ ] **G0**: Gemini LLM intent classifier — v0.3 candidate.
+- [ ] **W4-Speech**: SpeechTranscriber debug iOS 26.5.
+- [ ] v0.3 intent shortcuts (regex на VDS).
+- [ ] v0.5+ iOS Shortcut, Apple Watch, SwiftData history.
+- [ ] Repo rename `voice` → бренд (перед public-share).
+- [ ] License decision: AGPL-3.0 dual vs BSL vs proprietary.
+- [ ] Hardware-key refactor: SwiftUI `.onKeyPress` (iOS 17.4+).
+- [ ] Background PTT: custom BLE GATT (ESP32-C3 / nRF52).
 
 ---
 
 ## Open questions / risks (live)
 
-- Whisper `base` на iPhone 15 — будет ли реально ≤ 600ms? Замерить в v0.2 первой задачей.
-- Global hotkey conflicts с другими apps — заложить option (другая комбинация в settings) в v0.1, иначе блокер.
-- Microphone permission flow на macOS Sequoia (15+) изменился — research-first перед C4.
+- VK rate limit / ToS — Sergey ↔ bot DM only, не group. ~100 msg/day fine.
+  См. memory `reference_vk_bot_contracts.md`.
+- Whisper `base` на iPhone 15 ≤ 600ms — замерить если iOS app возвращается в скоуп.
+- Microphone permission flow macOS Sequoia 15+ — research перед iOS app revival.
 
 ---
 
-## Operational TODO (post-S1)
+## Operational TODO (post-MVP cleanup)
 
-- [ ] `voice-service` на mac-home как launchd service (сейчас держится через background ssh, тянется только пока есть claude-сессия). См. `~/Library/LaunchAgents/`.
-- [ ] Whisper FastAPI на ubuntu-home как systemd unit (сейчас через WMI-like trick — переживает ssh disconnect, но не reboot).
-- [ ] Sergey: `sudo pmset -a sleep 0 disksleep 0` на mac-home (см. `reference_mac_home_clamshell` memory — иначе SSH/WG отваливаются в clamshell mode).
-- [ ] Удалить временные spike-артефакты на mac-home: `/tmp/spike-hb/`.
-
-## Next stories
-
-- **S3** Voice reply via TTS (3-tier Yandex/XTTS/Apple) — 8 E-тикетов в `bench/results/FINAL-CHOICE-TTS-2026-06-14.md`. Tier 1 cloud Yandex primary, XTTS-v2 secondary, Apple Milena fallback. API key Yandex уже в `~/.config/voice-bench/yandex_speechkit.env` на mac-home.
-- **B-Happy-real-bind** Backend `/v1/voice/intent` сейчас echo (`[live reply] <text>`) — нужен HappyState lookup по cwd `/Users/flyer2001/projects/voice-assistant/` (или env override). Отдельный B-ticket после G2-real-Happy.
+- [ ] mac-home: `sudo pmset -a sleep 0 disksleep 0` (см. `reference_mac_home_clamshell`).
+- [ ] mac-home: Screen Sharing daemon kickstart после macOS update.
+- [ ] Удалить spike-артефакты `/tmp/spike-hb/` на mac-home.
+- [ ] voice-service на mac-home как launchd — не нужен если backend остаётся на VDS.
