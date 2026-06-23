@@ -1,3 +1,51 @@
+## [2026-06-23] MVP_thin² VK voice in / text out — E2E green, 95 tests, 5 commits
+
+**Сделано:**
+- ✅ Phase 0 spike (SP1-SP5): VKModels audio_message shape verified, transcript_state async lifecycle → MVP-decision skip, audio storage `/var/lib/voice-bot/{raw/,audit.jsonl}` created on VDS (perms 750/640), VK creds wired via `/etc/vk-bot.env` (EnvironmentFile=- additive), Happy target_cwd switched agentops → assistant (running session)
+- ✅ `specs/vk-bot-mvp.md` (179 LOC) — 8 E2E scenarios S-1..S-8 + architecture sketch
+- ✅ `specs/vk-bot-mvp-spike-report.md` (122 LOC) — Phase 0 report
+- ✅ Phase 2 TDD ladder (lazy variant — impl до tests, mock'и через closures): `TranscriptDecider.swift` (15 LOC, pure func), `AudioStorage.swift` (80 LOC, .ogg + JSONL append), `VoiceMessagePipeline.swift` (170 LOC, orchestrator с DI closures — VKAdapter не depends на VoiceServiceCore)
+- ✅ Tests +16: `TranscriptDeciderTests` × 5, `AudioStorageTests` × 3, `VoiceMessagePipelineE2ETests` × 8 (все S-1..S-8 mock'ами). **95/95 backend green** (51 VKAdapter + 44 VoiceServiceCore)
+- ✅ main.swift VK loop wire — `VK_BOT_ENABLED=true` → `LiveHappyInjectMessenger` + `WhisperHTTPRelay` + `LiveVKHTTPClient` + `VKAPIClient.sendMessage` bound в pipeline closures, `Task.detached` long-poll forever loop, handles failed:2|3 by refetching getLongPollServer
+- ✅ `VOICE_MAX_AUDIO_S` env override (default 300s = VK voice hard cap, был 60)
+- ✅ VK Long Poll events enabled via `groups.setLongPollSettings` (message_new + message_reply + message_allow/deny). Prior `message_new=0` блокировало receiving — без любых событий subscription LongPoll просто idle'ит
+- ✅ Live smoke E2E green: 5 entries в audit.jsonl, latency p50 7-10s (3s audio → 6.7s, 122s audio → 9.98s, ~12× realtime CUDA Whisper turbo). msg177 62s reject когда был limit 60 → подняли до 300, msg182 122s прошло
+- ✅ Operational fixes: ubuntu-home reboot из Windows boot через `bcdedit /set {fwbootmgr} bootsequence` + `shutdown /r`, Whisper launch script fix (shebang + LD_LIBRARY_PATH quoting через heredoc literal), `~/.claude/docs/home-machines.md` banner-detect bug spotted (Windows OpenSSH 9.x теперь generic banner без `for_Windows`)
+- ✅ Memory: `feedback_delegate_ios_to_subagent.md` про делегирование iOS-задач subagent'у (после sim Keychain рысканий в B-Happy bind сессии)
+
+**Решения:**
+- **MVP scope = voice in / text out** (TTS skip полностью). VK bot transport = zero deployment на клиенте. iOS app откладывается в Phase 2. Sergey'я proposal challenged + урезан в `specs/vk-bot-mvp.md`.
+- **`VKAdapter` не depend на `VoiceServiceCore`** — module boundary через closures (DownloadFn, TranscribeFn, HappyInjectFn, VKSendFn). Без protocol'ов с одной impl. Тесты — closures inline.
+- **`STT_MODE` / `HAPPY_MODE` независимы** (из прошлой B-Happy bind сессии). `VK_BOT_ENABLED=true` requires оба `live`.
+- **Audit JSONL flat filesystem** (без SQLite). `find`/`jq` достаточно на MVP. Eviction NONE — добавим cron когда disk usage станет проблемой.
+- **TDD violation признан**: pipeline impl написан до tests. Lazy variant — closures-based DI + clear boundaries (Phase 0 spike) → impl был дешёвый. Tests verified all green с первой прокрутки. В следующий раз — red first.
+- **target_cwd = `/root/projects/assistant`** (не cashflow). Cashflow Happy session не была running, assistant — основной dispatcher Sergey'я, естественный target для voice.
+- **VOICE_MAX_AUDIO_S=300** (5 min) — VK voice hard cap. Whisper turbo + CUDA RTX 3070 handles на 122s = 3.3s STT (~37× realtime), достаточный headroom для 5 min.
+
+**Открытое:**
+- **OP1**: Whisper FastAPI systemd unit на ubuntu-home — сейчас nohup + bash, переживает ssh disconnect но не reboot. Перенесено в TASKS Phase 3.
+- **OP3**: assistant Happy session keep-running auto-restart — пока Sergey запускает руками.
+- **DG1-3**: Dogfood / variance audit — collect 5+ голосовых разных профилей, проверить edge cases 290/295/305s VK upper bound, корреляция inject_ms vs prompt/output sizes (msg179 27s outlier).
+- **VK transcript_state async event** (`audio_message_transcript`) — MVP skip. Перепроверить trade-off если Whisper будет под нагрузкой.
+- **macOS Win OpenSSH banner detection broken** — отправил prompt в assistant сессию (создать `bin/detect-home-os.sh` через `uname -s` + `cmd /c ver` fallback + update `~/.claude/docs/home-machines.md`).
+
+**Файлы:**
+- backend/voice-service/Sources/VKAdapter/{TranscriptDecider,AudioStorage,VoiceMessagePipeline}.swift (новые)
+- backend/voice-service/Sources/VoiceService/main.swift (VK loop wire + VOICE_MAX_AUDIO_S)
+- backend/voice-service/Sources/VoiceServiceCore/EnvComposition.swift (из B-Happy bind, commit 4489a30 этой сессии тоже)
+- backend/voice-service/Tests/VKAdapterTests/{TranscriptDeciderTests,AudioStorageTests,VoiceMessagePipelineE2ETests}.swift (новые)
+- backend/voice-service/Tests/VKAdapterTests/VKAPIClientTests.swift (Swift 6.3 NSLock fix)
+- backend/voice-service/Tests/VoiceServiceCoreTests/{AudioEndpointTests,EnvCompositionTests}.swift
+- backend/voice-service/deploy/{README.md,voice-backend.env.example} (HAPPY_MODE docs)
+- Sources/VoiceAssistant/Audio/AudioCapture.swift (iOS 26 sim crash fix: engine.prepare() перед installTap)
+- iOS/VoiceAssistant/ContentView.swift (backendBaseURL 127.0.0.1 → 10.10.0.1)
+- bench/results/gemma/gemma-3n-E2B-{clean,gsm}.csv (archived bench artefacts)
+- specs/vk-bot-mvp.md, specs/vk-bot-mvp-spike-report.md (новые)
+- .claude/TASKS.md, .claude/CHANGELOG.md (этот файл)
+- /etc/voice-backend.env + /etc/vk-bot.env + /etc/systemd/system/voice-backend.service (VDS — не в repo, доп. EnvironmentFile=-/etc/vk-bot.env + ReadWritePaths /var/lib/voice-bot)
+- /var/lib/voice-bot/raw/ + audit.jsonl (VDS — runtime storage, 5 entries audit, 4 .ogg files)
+- Memory: feedback_delegate_ios_to_subagent.md, MEMORY.md index
+
 ## [2026-06-18] TASKS.md cleanup — закрытые `[x]` вычищены, контекст в CHANGELOG/specs/bench
 
 **Сделано:**
