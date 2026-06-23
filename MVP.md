@@ -1,104 +1,65 @@
 # MVP — voice
 
-> Scope первой итерации. Закрытые задачи `[x]`. Подробности по милстоунам — в
-> `.claude/CHANGELOG.md` после `/endsession`.
+> Scope первой итерации. Подробности по милстоунам — в `.claude/CHANGELOG.md`.
+> Открытые задачи — в `.claude/TASKS.md`.
 
 ## DoD MVP
 
-End-to-end **push-to-talk → текст → reply** работает в одном клиенте (iOS
-ИЛИ macOS, выбираем при старте) с латентностью **≤ 4с от отпускания кнопки
-до появления ответа в bubble**.
+End-to-end **VK voice message → Whisper STT → Happy inject → text reply в VK** работает 24/7 на VDS. Без iOS клиента. Latency p50 ≤ 15с (3s audio → ~7s, 122s audio → ~10s).
 
-## v0.0 — Setup (sellability foundation)
+**Реально достигнуто 2026-06-23** (см. CHANGELOG `MVP_thin² VK voice in / text out E2E green`). E2E зелёный, 95 backend tests, audit JSONL, 5 live messages обработаны.
 
-Делается ПЕРЕД v0.1. Базовые границы чтобы потом не переписывать.
+## Pivot history
 
-- [ ] `git init` + `flyer2001/voice` private (через `gh repo create`)
-- [ ] `LICENSE` placeholder — «All rights reserved» (НЕ MIT, окончательно
-      решаем перед public-share)
-- [ ] `.gitignore` для Swift/SPM (DerivedData, .build, *.xcuserstate) +
-      `secrets.local`
-- [ ] `secrets.example` с placeholder'ами (API_KEY, BACKEND_URL,
-      ADAPTER_TYPE), реальный `secrets.local` в gitignore
-- [ ] `Sources/voice/Backend/BackendAdapter.swift` —
-      `protocol BackendAdapter { func send(text: String) async throws -> Reply }`
-      + struct `Reply { text: String; latencyMs: Int }`
-- [ ] `Sources/voice/Backend/DispatcherAdapter.swift` — единственная
-      реализация в v0.0/v0.1 (Happy REST inject)
-- [ ] `specs/backend-protocol.md` — request/response shapes, error modes,
-      auth pattern. Самодостаточный, без ссылок на приватную инфру автора
-- [ ] `README.md` — явное «один из adapter'ов — личный dispatcher автора,
-      другие TODO»
-- [ ] Initial commit + push в `flyer2001/voice`
+Изначальный план (`v0.0` → `v0.1` iOS/macOS клиент) **отложен в Phase 2**. Пивот на VK Bot transport 2026-06-19 — zero deployment на клиенте, Sergey уже использует VK для войсов, естественный канал.
 
-## Скоуп v0.1 (демо, один клиент)
+## Phase 1 — Foundation (DONE 2026-06-08…06-18)
 
-### Платформа на выбор
+- ✅ v0.0 sellability foundation: repo, LICENSE placeholder, .gitignore, `BackendAdapter` protocol + `DispatcherAdapter`, `specs/backend-protocol.md`
+- ✅ STT bench W1–W5: WhisperKit large-v3 vs Apple Speech vs faster-whisper. Winner: faster-whisper-large-v3-turbo на CUDA RTX 3070 (ubuntu-home dual-boot)
+- ✅ Backend B1–B9: Hummingbird 2 service, `POST /v1/voice/intent`, Bearer auth, JSONL log, EnvComposition split
+- ✅ S1 Speech echo + S2 Forward to Happy + bubble UI (iOS sim smoke green) — наработки legacy, reuse в Phase 5
 
-- [ ] **iOS** — hold-to-speak full-screen кнопка, primary target по UX
-- ИЛИ
-- [ ] **macOS** — menu bar app с global hotkey (⌘⇧V), быстрее на M1
+## Phase 2 — VK Bot MVP_thin² (DONE 2026-06-23)
 
-(Выбираем при старте проектной сессии; второй клиент — v0.2)
+Pivot scope: **voice in / text out**, TTS skip полностью.
 
-### Клиент
+- ✅ Phase 0 spike SP1–SP5: VKModels audio_message verified, audio storage layout, VK creds wire, Happy target switch agentops → assistant
+- ✅ Phase 2 TDD ladder: `TranscriptDecider`, `AudioStorage`, `VoiceMessagePipeline` orchestrator с closure-based DI (VKAdapter не depends на VoiceServiceCore)
+- ✅ E2E scenarios S-1..S-8 mock'ами, 16 новых tests, **95/95 backend green**
+- ✅ `main.swift` VK loop wire: `VK_BOT_ENABLED=true` → Long Poll forever loop, handles failed:2|3 via refetch
+- ✅ `VOICE_MAX_AUDIO_S=300` env override (5 min = VK voice hard cap)
+- ✅ VK Long Poll events enabled via `groups.setLongPollSettings`
+- ✅ Live smoke E2E: 5 audit entries, latency p50 7-10s, msg182 122s OK
 
-- [ ] AVFoundation capture, hold-to-speak UI
-- [ ] WhisperKit on-device, модель `tiny` или `base` (тюним после demo)
-- [ ] URLSession POST на VDS endpoint
-- [ ] Bubble UI с историей последних 10 turn'ов (in-memory, не персист в v0.1)
-- [ ] Keychain хранение API key
+## Phase 3 — Operational hardening (current)
 
-### Backend (VDS)
+Цель — backend переживает reboot, без ручного ssh-rerun.
 
-- [ ] Hummingbird 2 service на отдельном порту (8089?), systemd unit
-- [ ] Endpoint `POST /v1/voice/intent` — accept `{text, ts, client_id}` →
-      return `{reply, latency_ms}`
-- [ ] Auth: bearer token из header
-- [ ] Forward to dispatcher: inject API (Happy REST, см.
-      [[reference_happy_inject_protocol]]) или sessions-db MCP `pickup_continue`
-- [ ] Логирование `/var/log/voice.jsonl` (ts, client_id, text, reply, latency)
+- ✅ **OP1**: Whisper FastAPI systemd unit на ubuntu-home (2026-06-23) — `/etc/whisper.env` + `/etc/systemd/system/whisper.service`, `RequiresMountsFor=/mnt/win-share`, `User=flyer2001`, `Restart=on-failure`. Smoke green: 3.12s audio → 674ms STT
+- [ ] **OP3**: assistant Happy session keep-running на VDS
 
-### Transport
+## Phase 4 — Dogfood / observability
 
-- [ ] WireGuard уже работает, проверить что VDS endpoint доступен с iPhone
-      через VPN
-- [ ] Fallback публичный HTTPS — только если WG нестабилен
+- [ ] **DG1**: 5+ голосовых разных типов (short/long/code-mix/шумных) для bench audit. Cumulative WER vs VK-transcript
+- [ ] **DG2**: Happy reply latency variance — msg179 (44s audio) дал `inject_ms=27.6s` outlier. Логировать prompt/output sizes
+- [ ] **DG3**: VOICE_MAX_AUDIO_S=300 edge cases (290/295/305s)
 
-## v0.2 (второй клиент)
+## Phase 5 — iOS/macOS app (post-MVP, Backlog)
 
-- [ ] Вторая платформа (если v0.1 был iOS → теперь macOS, и наоборот)
-- [ ] Shared SwiftUI компонент Bubble
+iOS клиент reuse VK transport как `BackendAdapter` impl. Phase 1 наработки (Turn/TurnsStore/Keychain/Onboarding) живые в `iOS/` + `Sources/VoiceAssistant/`. Детали — в `.claude/TASKS.md` Backlog.
 
-## v0.3 (intent shortcuts)
+## Phase 6+ — Backlog
 
-- [ ] Заготовленные intents (5-10): «status», «inject в проект X»,
-      «напомни», «запиши в myRep», «open project X»
-- [ ] Локальная классификация regex/keyword на VDS — не LLM-вызов на каждый
-      запрос
+- TTS reply (S3 Yandex SpeechKit Tier 1) — triggered только если text-out скучно после dogfood week
+- Gemini LLM intent classifier (G0)
+- v0.3 intent shortcuts (regex на VDS)
+- iOS Shortcut, Apple Watch companion, SwiftData history
+- Repo rename `voice` → бренд (перед public-share)
+- License decision: AGPL-3.0 dual vs BSL vs proprietary
 
-## v0.4 (TTS reply)
+## Открытые риски (live)
 
-- [ ] AVSpeechSynthesizer на клиенте
-- [ ] Опция в UI: text/voice/both
-
-## v0.5+ (постMVP идеи в backlog)
-
-- iOS Shortcut integration
-- macOS Apple Watch companion
-- История за день (персист SwiftData)
-- Multi-language (текст пока RU/EN автодетект через Whisper, OK)
-
-## Открытые вопросы (надо решить ПЕРЕД проектной сессией)
-
-1. **Repo имя** — `flyer2001/voice` private (default), или brand'овое
-   сразу (`whisperboard` / `voice-dispatch` / `holdtotalk` / другое)?
-   Решается до `gh repo create` в v0.0.
-2. **iOS или macOS первым** для v0.1 demo?
-3. **WhisperKit модель** — `tiny` (39M params, ~быстро, RU так-сяк) или
-   `base` (74M, лучше RU, +200ms на M1)? Тюним после demo.
-4. **Backend reuse**: создавать новый Hummingbird сервис или подмонтировать
-   endpoint в существующий cashflow-bot binary?
-5. **LICENSE форма** — proprietary «All rights reserved» (default,
-   максимальная гибкость), или dual-license с самого начала
-   (e.g. AGPL + commercial)? Решается до public-share, не до v0.1.
+- VK rate limit / ToS — Sergey ↔ bot DM only, ~100 msg/day fine (см. `reference_vk_bot_contracts.md`)
+- VK `audio_message_transcript` async event skip'ается — Whisper всегда работает. Перепроверить если Whisper под нагрузкой
+- Audit JSONL eviction NONE — ~180KB/msg, OK на год. Cleanup cron когда понадобится

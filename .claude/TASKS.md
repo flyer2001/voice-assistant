@@ -2,16 +2,12 @@
 
 > Active sprint. Only open items: `[ ]` open, `[~]` in-progress, `[!]` blocked.
 > Закрытые задачи — в `.claude/CHANGELOG.md` (prepend через `/endsession`).
-> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl, **MVP_thin² VK voice in / text out E2E green 2026-06-23** — детали в CHANGELOG.
+> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl, **MVP_thin² VK voice in / text out E2E green 2026-06-23**, **OP1 Whisper systemd unit на ubuntu-home 2026-06-23** — детали в CHANGELOG.
 
 ---
 
 ## MVP — operational hardening (Phase 3)
 
-- [ ] **OP1**: Whisper FastAPI systemd unit на ubuntu-home — сейчас nohup
-  + bash launch_whisper.sh, переживает ssh disconnect но не reboot. Recipe:
-  `[Unit] After=mnt-win-share.mount` + `EnvironmentFile=/etc/whisper.env`
-  + `ExecStart=/mnt/win-share/Users/Serg/whisper-server/launch.sh`.
 - [ ] **OP3**: assistant Happy session keep-running на VDS. Сейчас target,
   ручной запуск через windows-setup. Auto-restart через `happy --reattach`
   не нужен на MVP — Sergey запускает руками когда работает.
