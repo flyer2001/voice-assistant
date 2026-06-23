@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# voice-reply <peer_id> <text> — send VK msg via voice-backend.
+# Token sourced from /etc/voice-backend.env. Requires jq.
+#
+# Install on VDS:
+#   sudo install -m 755 backend/voice-service/deploy/voice-reply /usr/local/bin/
+#
+# Dispatcher session uses it as a one-call reply path after a voice arrives:
+#   voice-reply 360258728 "got it, working on the report"
+set -euo pipefail
+PEER="${1:?peer_id required}"
+TEXT="${2:?text required}"
+TOKEN=$(grep -E '^VOICE_BACKEND_TOKEN=' /etc/voice-backend.env | cut -d= -f2- | tr -d '"' | tr -d "'")
+[ -z "$TOKEN" ] && { echo "VOICE_BACKEND_TOKEN missing in /etc/voice-backend.env" >&2; exit 1; }
+exec curl -sS -X POST http://10.10.0.1:8089/v1/vk/send \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  --data "$(jq -nc --argjson peer "$PEER" --arg text "$TEXT" '{peer_id: $peer, text: $text}')"

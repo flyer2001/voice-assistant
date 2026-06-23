@@ -25,8 +25,8 @@ do {
     fatalError("unexpected composition error: \(error)")
 }
 
-let config = buildConfiguration(token: token, plan: plan)
-let app = VoiceServiceApp.make(config: config, host: host, port: port)
+let baseConfig = buildConfiguration(token: token, plan: plan)
+var vkSendForConfig: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)? = nil
 
 // ── VK voice bot — optional background loop ──────────────────────────
 //
@@ -71,13 +71,21 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
             return try await relay.transcribe(audio: bytes).text
         },
         happyInject: { text, cwd in
-            try await messenger.send(text: text, targetCwd: cwd, timeout: .seconds(30))
+            // Fire-and-forget: dispatcher session replies async via
+            // POST /v1/vk/send. The bot's "reply" to VK is the ack below,
+            // not the dispatcher's actual answer.
+            try await messenger.injectNoWait(text: text, targetCwd: cwd)
+            return "👍 принял, отвечу в отдельном сообщении"
         },
         vkSend: { peer, text in
             _ = try await api.sendMessage(peerId: peer, text: text)
         },
         storage: storage
     )
+
+    vkSendForConfig = { peer, text in
+        _ = try await api.sendMessage(peerId: peer, text: text)
+    }
 
     Task.detached {
         await runVKLoop(api: api, http: http, config: vkConfig, pipeline: pipeline, logger: logger)
@@ -88,6 +96,15 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
     ])
 }
 
+let config = Configuration(
+    token: baseConfig.token,
+    replyProvider: baseConfig.replyProvider,
+    sttProvider: baseConfig.sttProvider,
+    vkSendProvider: vkSendForConfig,
+    requestLogger: baseConfig.requestLogger,
+    audioLimits: baseConfig.audioLimits
+)
+let app = VoiceServiceApp.make(config: config, host: host, port: port)
 try await app.runService()
 
 

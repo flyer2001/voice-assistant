@@ -130,9 +130,17 @@ public struct VoiceMessagePipeline: Sendable {
         try? await vkSend(peerId, "👂 услышал: «\(transcriptText)»")
         let vkSendMs = ms(since: vkSendStart)
 
-        // Inject в Happy с provenance prefix.
+        // Inject в Happy с provenance prefix + reply hint для async dispatcher
+        // → VK callback. Dispatcher should reply via wrapper:
+        //     voice-reply \(peerId) "<text>"
+        // (installs to /usr/local/bin, reads token from /etc/voice-backend.env)
         let src = decisionTag == "used_vk" ? "vk-transcript" : "whisper"
-        let prefixed = "[voice from Sergey, src=\(src), lang=ru]\n\(transcriptText)"
+        let prefixed = """
+        [voice from Sergey, src=\(src), lang=ru]
+        [reply: `voice-reply \(peerId) "<text>"` — wrapper в PATH, без token-discovery]
+
+        \(transcriptText)
+        """
 
         let injectStart = clock()
         let reply: String

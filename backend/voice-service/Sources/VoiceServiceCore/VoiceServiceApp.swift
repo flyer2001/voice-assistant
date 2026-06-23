@@ -73,6 +73,26 @@ public enum VoiceServiceApp {
                 return errorResponse(.badGateway, error: "stt_failed")
             }
         }
+        if let vkSend = config.vkSendProvider {
+            router.post("/v1/vk/send") { request, context -> Response in
+                let body = try await request.body.collect(upTo: 64 * 1024)
+                let req: VKSendRequest
+                do {
+                    req = try JSONDecoder().decode(VKSendRequest.self, from: Data(buffer: body))
+                } catch {
+                    return errorResponse(.badRequest, error: "malformed_request")
+                }
+                guard !req.text.isEmpty else {
+                    return errorResponse(.badRequest, error: "empty_text")
+                }
+                do {
+                    try await vkSend(req.peer_id, req.text)
+                    return jsonResponse(.ok, body: ["ok": true])
+                } catch {
+                    return errorResponse(.badGateway, error: "vk_send_failed")
+                }
+            }
+        }
         router.post("/v1/voice/intent") { request, context -> Response in
             let started = Date()
             let body = try await request.body.collect(upTo: 64 * 1024)
@@ -115,6 +135,13 @@ struct AudioMultipartRequest: Decodable {
     let ts: String
     let lang_hint: String?
     let max_duration_s: Double?
+}
+
+/// POST /v1/vk/send body. Dispatcher session uses this to send messages
+/// directly to VK via the bot, bypassing the synchronous reply path.
+struct VKSendRequest: Decodable {
+    let peer_id: Int64
+    let text: String
 }
 
 /// Wire format for POST /v1/voice/audio success response. Snake_case JSON

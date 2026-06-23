@@ -14,8 +14,10 @@
 
 ## MVP — dogfood / nice-to-have
 
-- [ ] **DG1**: 5+ голосовых разных типов (короткие, длинные, code-mix,
-  shumно) для bench audit. Cumulative WER vs VK-transcript когда оба есть.
+- [ ] **DG1**: ad-hoc quality feedback. Bot уже echo'ит «👂 услышал: ...».
+  Плохая расшифровка → Sergey пишет в любую Claude сессию «msg N плохо: X»,
+  собираем паттерн post-hoc. Structured corpus collection — overkill для MVP.
+  WER vs VK = blocked (skip `audio_message_transcript` event per SP3).
 - [ ] **DG2**: Happy reply latency variance — msg179 (44s audio) дало
   inject_ms=27.6s. Большая нагрузка диспетчера или большой output? Логировать
   prompt/output sizes в audit для корреляции.

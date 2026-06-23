@@ -54,6 +54,51 @@ public struct LiveHappyInjectMessenger: Sendable {
         }
     }
 
+    /// Fire-and-forget inject: encrypt + POST, no JSONL wait. Returns when the
+    /// Happy server has accepted the encrypted envelope. The dispatcher session
+    /// is expected to reply asynchronously via a separate channel (e.g. POST
+    /// /v1/vk/send for the VK bot path).
+    public func injectNoWait(text: String, targetCwd: String) async throws {
+        let token: String
+        let sessions: [String: HappySessionRecord]
+        do {
+            token = try state.readToken()
+            sessions = try state.readSessions()
+        } catch let err as HappyStateError {
+            throw Error.state(err)
+        }
+
+        let pick: (sid: String, record: HappySessionRecord)
+        do {
+            pick = try state.pickRunningSession(byCwd: targetCwd, sessions: sessions)
+        } catch let err as HappyStateError {
+            throw Error.state(err)
+        }
+        guard pick.record.encryptionVariant == "dataKey",
+              let keyBase64 = pick.record.encryptionKey
+        else {
+            throw Error.unsupportedEncryptionVariant(pick.record.encryptionVariant ?? "nil")
+        }
+
+        let envelope = UserEnvelope(
+            role: "user",
+            content: .init(type: "text", text: text),
+            meta: .init(sentFrom: "voice-service-swift")
+        )
+        let encrypted: String
+        do {
+            encrypted = try HappyCrypto.encryptDataKey(envelope, keyBase64: keyBase64)
+        } catch let err as HappyCrypto.Error {
+            throw Error.crypto(err)
+        }
+
+        do {
+            try await api.postMessage(sid: pick.sid, token: token, encryptedB64: encrypted)
+        } catch let err as HappyAPI.Error {
+            throw Error.http(err)
+        }
+    }
+
     public func send(text: String, targetCwd: String, timeout: Duration) async throws -> String {
         let token: String
         let sessions: [String: HappySessionRecord]

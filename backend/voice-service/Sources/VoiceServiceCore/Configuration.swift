@@ -8,6 +8,7 @@ public struct Configuration: Sendable {
     public let token: String
     public let replyProvider: @Sendable (IntentRequest) async throws -> String
     public let sttProvider: STTProvider?
+    public let vkSendProvider: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)?
     public let requestLogger: RequestLogger?
     public let audioLimits: AudioLimits
 
@@ -15,12 +16,14 @@ public struct Configuration: Sendable {
         token: String,
         replyProvider: @escaping @Sendable (IntentRequest) async throws -> String,
         sttProvider: STTProvider? = nil,
+        vkSendProvider: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)? = nil,
         requestLogger: RequestLogger? = nil,
         audioLimits: AudioLimits = .default
     ) {
         self.token = token
         self.replyProvider = replyProvider
         self.sttProvider = sttProvider
+        self.vkSendProvider = vkSendProvider
         self.requestLogger = requestLogger
         self.audioLimits = audioLimits
     }
