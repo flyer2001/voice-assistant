@@ -57,9 +57,12 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
         auditPath: URL(fileURLWithPath: env["VOICE_AUDIT_LOG"] ?? "/var/lib/voice-bot/audit.jsonl")
     )
 
+    let maxAudioS = Int(env["VOICE_MAX_AUDIO_S"] ?? "") ?? 300
+
     let pipeline = VoiceMessagePipeline(
         targetCwd: targetCwd,
         ownerIds: Set(vkConfig.ownerIds.map { Int64($0) }),
+        maxDurationS: maxAudioS,
         download: { url in
             try await http.send(method: "GET", url: url, headers: [:], body: nil)
         },
