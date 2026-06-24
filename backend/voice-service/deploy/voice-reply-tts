@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# voice-reply-tts <peer_id> <text> [voice]
+# Yandex SpeechKit (default alena, oggopus) → VK voice message.
+# Reads /etc/yandex_speechkit.env (API-KEY) + /etc/vk-bot.env (VK_BOT_TOKEN).
+#
+# VK group token MUST have `messages` + `docs` scopes (docs.getMessagesUploadServer
+# requires docs).
+#
+# Install on VDS:
+#   sudo install -m 755 backend/voice-service/deploy/voice-reply-tts /usr/local/bin/
+#
+# Known TTS quirks: latin abbreviations (TTS, API) читаются буквами слитно,
+# иногда коряво. Если важно — пиши кириллицей («тэ-тэ-эс»).
+set -euo pipefail
+
+PEER="${1:?peer_id required}"
+TEXT="${2:?text required}"
+VOICE="${3:-alena}"
+LANG="ru-RU"
+API_VER="5.199"
+
+YA_KEY=$(grep -E '^API-?KEY=' /etc/yandex_speechkit.env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+VK_TOKEN=$(grep -E '^VK_BOT_TOKEN=' /etc/vk-bot.env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+[ -z "$YA_KEY" ] && { echo "API-KEY missing in /etc/yandex_speechkit.env" >&2; exit 1; }
+[ -z "$VK_TOKEN" ] && { echo "VK_BOT_TOKEN missing in /etc/vk-bot.env" >&2; exit 1; }
+
+TMP=$(mktemp --suffix=.ogg)
+trap 'rm -f "$TMP"' EXIT
+
+# 1) Yandex synthesize → oggopus
+curl -sS --fail -X POST https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize \
+  -H "Authorization: Api-Key $YA_KEY" \
+  --data-urlencode "text=$TEXT" \
+  --data-urlencode "voice=$VOICE" \
+  --data-urlencode "lang=$LANG" \
+  --data-urlencode "format=oggopus" \
+  -o "$TMP"
+
+SIZE=$(stat -c %s "$TMP")
+[ "$SIZE" -lt 100 ] && { echo "TTS returned suspiciously small file ($SIZE B)" >&2; cat "$TMP" >&2; exit 1; }
+
+# 2) VK upload server
+UP=$(curl -sS "https://api.vk.com/method/docs.getMessagesUploadServer?type=audio_message&peer_id=$PEER&access_token=$VK_TOKEN&v=$API_VER")
+UP_URL=$(echo "$UP" | jq -r '.response.upload_url // empty')
+[ -z "$UP_URL" ] && { echo "no upload_url: $UP" >&2; exit 1; }
+
+# 3) upload
+UPLOAD=$(curl -sS -X POST -F "file=@$TMP;type=audio/ogg" "$UP_URL")
+FILE_TOKEN=$(echo "$UPLOAD" | jq -r '.file // empty')
+[ -z "$FILE_TOKEN" ] && { echo "upload failed: $UPLOAD" >&2; exit 1; }
+
+# 4) docs.save
+SAVED=$(curl -sS --data-urlencode "file=$FILE_TOKEN" \
+  "https://api.vk.com/method/docs.save?access_token=$VK_TOKEN&v=$API_VER")
+OWNER=$(echo "$SAVED" | jq -r '.response.audio_message.owner_id // empty')
+DOC_ID=$(echo "$SAVED" | jq -r '.response.audio_message.id // empty')
+{ [ -z "$OWNER" ] || [ -z "$DOC_ID" ]; } && { echo "docs.save failed: $SAVED" >&2; exit 1; }
+
+# 5) messages.send with attachment
+RND=$RANDOM$RANDOM
+RESULT=$(curl -sS "https://api.vk.com/method/messages.send?peer_id=$PEER&random_id=$RND&attachment=doc${OWNER}_${DOC_ID}&access_token=$VK_TOKEN&v=$API_VER")
+MID=$(echo "$RESULT" | jq -r '.response // empty')
+[ -z "$MID" ] && { echo "messages.send failed: $RESULT" >&2; exit 1; }
+
+echo "{\"ok\":true,\"message_id\":$MID,\"audio\":\"doc${OWNER}_${DOC_ID}\",\"tts_size\":$SIZE}"

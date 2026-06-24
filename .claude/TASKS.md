@@ -28,10 +28,13 @@
 
 ## Backlog (post-MVP)
 
-### TTS reply (S3, отложено)
+### TTS reply
 
-- [ ] **S3.Yandex**: Tier 1 Yandex SpeechKit. См. `bench/results/FINAL-CHOICE-TTS-2026-06-14.md`.
-  Triggered только если text-out скучно после dogfood week.
+- ✅ **S3.Yandex** (2026-06-24): `voice-reply-tts` bash wrapper. Yandex
+  alena oggopus → VK docs upload → messages.send. Total ~3s. VK group
+  token re-issued с `docs` scope. Quirk: латинские abbrs читаются криво
+  (TTS, API) — пиши кириллицей если важно. Spec'ов и Swift-кода нет —
+  bash достаточно.
 
 ### iOS/macOS app (Phase 2, post-MVP)
 
