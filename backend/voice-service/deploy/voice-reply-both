@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# voice-reply-both <peer_id> <text> [voice]
+# Sends text + TTS to VK sequentially — text first so it appears above
+# the voice bubble in the VK chat timeline.
+#
+# Install on VDS:
+#   sudo install -m 755 backend/voice-service/deploy/voice-reply-both /usr/local/bin/
+#
+# Requires voice-reply + voice-reply-tts also installed.
+set -euo pipefail
+PEER="${1:?peer_id required}"
+TEXT="${2:?text required}"
+VOICE="${3:-alena}"
+voice-reply "$PEER" "$TEXT" >/dev/null
+exec voice-reply-tts "$PEER" "$TEXT" "$VOICE"

@@ -131,13 +131,15 @@ public struct VoiceMessagePipeline: Sendable {
         let vkSendMs = ms(since: vkSendStart)
 
         // Inject в Happy с provenance prefix + reply hint для async dispatcher
-        // → VK callback. Dispatcher should reply via wrapper:
-        //     voice-reply \(peerId) "<text>"
-        // (installs to /usr/local/bin, reads token from /etc/voice-backend.env)
+        // → VK callback. Default = dual (text + TTS) через voice-reply-both.
+        // Плюс dispatcher выводит финальный текст ответом в chat — Sergey
+        // видит его в Happy app. См. memory reference_voice_reply_protocol.md.
         let src = decisionTag == "used_vk" ? "vk-transcript" : "whisper"
         let prefixed = """
         [voice from Sergey, src=\(src), lang=ru]
-        [reply: `voice-reply \(peerId) "<text>"` — wrapper в PATH, без token-discovery]
+        [reply DEFAULT: `voice-reply-both \(peerId) "<text>"` — text+TTS в VK]
+        [reply TEXT-ONLY для code/list/url (TTS плохо читает): `voice-reply \(peerId) "<text>"`]
+        [ALSO: вывести полный текст ответа в chat, чтоб был в Happy app]
 
         \(transcriptText)
         """
