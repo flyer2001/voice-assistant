@@ -6,54 +6,32 @@
 
 ---
 
-## Phase 6 — C hybrid multi-project focus routing (next sprint)
+## Phase 6 — C hybrid multi-project focus routing
 
-**Цель:** voice → правильная session напрямую, dispatcher не оверлоадится.
+**Shipped 2026-07-05** (F1/F2/F3-lite/F4/F5). E2E green с /root/projects/myRep как focus. Детали в CHANGELOG.
 
-Sergey markup'ом переключает focus (voice-backend routing), проектные sessions отвечают в VK сами через `voice-reply-*` (async callback уже готов).
+Остались backlog-items:
 
-### F1 — Focus state file (backend)
+### F3-full — Voice-command focus (deferred, likely unnecessary)
 
-- [ ] `/var/lib/voice-bot/focus.json` — schema `{cwd, since, set_by_msg, note}` (все optional; отсутствие или `cwd=null` → default = dispatcher)
-- [ ] `FocusState.swift` в VoiceServiceCore: read/write atomic (tmp + rename), validate cwd существует, session running check через HappyState.pickRunningSession (fallback → dispatcher если session offline)
-- [ ] Init file если отсутствует: `{"cwd": null}` при первом запуске
-- [ ] Tests: read/write roundtrip, missing file → default, cwd invalid → default, session offline → default с fallback log
+F3-lite (slash commands `/focus <name>`, `/to_assistant` в VK text) уже покрывает use case без Whisper-mistranslate риска. F3-full = «focus кэшфлоу» голосом → dispatcher memory `feedback_voice_focus_commands.md` в assistant парсит + пишет focus.json.
 
-### F2 — Pipeline routing (backend)
+Reopen только если Sergey реально захочет голосом переключать (телефон в машине без клавиатуры и т.п.).
 
-- [ ] `VoiceMessagePipeline` перед `injectNoWait` peek `focus.json`
-- [ ] Если valid focus → target_cwd = focus.cwd; иначе default (текущий env `VOICE_TARGET_CWD`)
-- [ ] Audit добавляет `target_cwd` + `focus_source` (`focus.json` | `default` | `fallback_offline`) fields
-- [ ] Tests: S9 focus set + running → routes to focus. S10 focus set + offline → fallback + log. S11 focus null → default
+- [ ] «в X: <текст>» one-shot pattern (без смены focus) — если понадобится
+- [ ] «статус всех» dispatcher spike (list_active + summary)
 
-### F3 — Focus commands (dispatcher)
+### F5 — Pattern analyzer runtime
 
-- [ ] Dispatcher memory `feedback_voice_focus_commands.md` в assistant:
-  - «focus X» / «работаем с X» / «в X» → парсит X, пишет focus.json
-  - «выйти» / «назад» / «вернись» → cwd=null
-  - «в X: <текст>» (one-shot без смены focus) → inject.mjs → воис не меняет focus
-  - «статус всех» / «что везде» — dispatcher spike (list_active + summary) не меняя focus
-- [ ] Update pipeline prefix hint: упомянуть focus commands + текущий target_cwd
+Spec написан (`docs/voice-patterns.md`). Осталось:
+- [ ] Первый прогон subagent'а на реальных 2 неделях audit'а → sanity check spec
+- [ ] Skill wrapper `/voice-patterns [Nd]` — если понадобится shortcut
 
-### F4 — Global voice reply protocol
-
-- [ ] Переписать `~/.claude/CLAUDE.md` — добавить секцию «Voice reply» с wrappers references
-- [ ] Убрать / упростить `reference_voice_reply_protocol.md` в assistant memory (не дублировать)
-- [ ] Каждая проектная session автоматически знает как отвечать
-
-### F5 — Pattern analyzer (on-demand skill)
-
-- [ ] `docs/voice-patterns.md` — spec pattern analysis format + input sources
-- [ ] Skill / prompt template: subagent читает `audit.jsonl` + dispatcher JSONL за N дней, корреляция ±30s
-- [ ] Output: `bench/analytics/voice-patterns-YYYY-MM-DD.md` с топ-N n-grams, verb frequencies, project mentions, focus events, bad transcriptions (heuristic), dispatcher tool-call overhead per intent
-- [ ] Propose canned shortcuts → v0.3 intent-shortcuts backlog items
-- [ ] Zero infra в prod, всё on-request
-
-**AC (acceptance criteria):**
-- Sergey говорит «focus cashflow» → следующий войс лендит в cashflow session (проверить audit target_cwd) → cashflow отвечает voice-reply-both сам → Sergey получает reply от cashflow, не dispatcher
-- Sergey говорит «выйти» → следующий войс снова в dispatcher
-- Sergey говорит «в voice: покажи tasks» → один войс в voice session, focus не меняется
-- Sergey запросил «/voice-patterns week» → отчёт с 10+ фразами и рекомендациями появляется в bench/analytics/
+**AC (Phase 6 shipped):**
+- ✅ `/focus myRep` в VK → следующий войс лендит в myRep session, audit target_cwd подтверждает
+- ✅ `/to_assistant` → следующий войс в dispatcher
+- ⏸ «в voice: покажи tasks» one-shot — deferred (F3-full)
+- ⏸ `/voice-patterns week` — spec готов, первый run отложен
 
 ---
 

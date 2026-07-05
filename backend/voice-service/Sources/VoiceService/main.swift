@@ -78,6 +78,52 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
     }
     let resolveTarget: VoiceMessagePipeline.ResolveTargetFn? = focusEnabled ? resolveTargetFn : nil
 
+    // Phase 6 F3-lite — VK text slash commands to set/clear focus without
+    // going through dispatcher. Sergey types `/focus myRep` in VK → next voice
+    // routes to /root/projects/myRep. Full voice-command parsing = future F3.
+    let slashHandler: VoiceMessagePipeline.SlashCommandFn = { @Sendable peerId, text in
+        @Sendable func reply(_ msg: String) async {
+            _ = try? await api.sendMessage(peerId: peerId, text: msg)
+        }
+        let parts = text.split(separator: " ", maxSplits: 1)
+        let cmd = String(parts[0])
+        let arg = parts.count > 1
+            ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+        switch cmd {
+        case "/focus":
+            if arg.isEmpty {
+                let current = (try? focusState.read())?.cwd ?? "(none → dispatcher)"
+                await reply("🎯 current focus: \(current)")
+                return true
+            }
+            let cwd = "/root/projects/\(arg)"
+            guard FileManager.default.fileExists(atPath: cwd) else {
+                await reply("❌ нет проекта \(arg) в /root/projects/")
+                return true
+            }
+            let now = ISO8601DateFormatter().string(from: Date())
+            try? focusState.write(Focus(cwd: cwd, since: now, note: "vk /focus \(arg)"))
+            await reply("✅ focus → \(arg)")
+            return true
+        case "/to_assistant", "/reset", "/exit":
+            try? focusState.write(Focus())
+            await reply("✅ focus reset → dispatcher (assistant)")
+            return true
+        case "/help":
+            await reply("""
+                commands:
+                /focus <name> — route voice to /root/projects/<name>
+                /focus — show current focus
+                /to_assistant | /reset | /exit — clear focus → dispatcher
+                """)
+            return true
+        default:
+            await reply("❓ unknown: \(cmd). Try /help")
+            return false
+        }
+    }
+
     let pipeline = VoiceMessagePipeline(
         targetCwd: targetCwd,
         ownerIds: Set(vkConfig.ownerIds.map { Int64($0) }),
@@ -100,7 +146,8 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
             _ = try await api.sendMessage(peerId: peer, text: text)
         },
         storage: storage,
-        resolveTarget: resolveTarget
+        resolveTarget: resolveTarget,
+        slashCommand: slashHandler
     )
 
     vkSendForConfig = { peer, text in

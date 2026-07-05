@@ -13,6 +13,9 @@ public struct VoiceMessagePipeline: Sendable {
     /// `(cwd, source)` where `source` = "focus" | "default" | "fallback_*".
     /// nil → use `targetCwd` + "default".
     public typealias ResolveTargetFn = @Sendable () -> (cwd: String, source: String)
+    /// Phase 6 F3-lite — text slash command handler. Returns true if command
+    /// recognised (audit → `slash_ok`), false if unknown (audit → `slash_unknown`).
+    public typealias SlashCommandFn = @Sendable (_ peerId: Int64, _ text: String) async -> Bool
 
     public let targetCwd: String
     public let ownerIds: Set<Int64>
@@ -22,6 +25,7 @@ public struct VoiceMessagePipeline: Sendable {
     public let happyInject: HappyInjectFn
     public let vkSend: VKSendFn
     public let resolveTarget: ResolveTargetFn?
+    public let slashCommand: SlashCommandFn?
     public let storage: AudioStorage
     public let clock: @Sendable () -> Date
 
@@ -35,6 +39,7 @@ public struct VoiceMessagePipeline: Sendable {
         vkSend: @escaping VKSendFn,
         storage: AudioStorage,
         resolveTarget: ResolveTargetFn? = nil,
+        slashCommand: SlashCommandFn? = nil,
         clock: @Sendable @escaping () -> Date = { .now }
     ) {
         self.targetCwd = targetCwd
@@ -45,6 +50,7 @@ public struct VoiceMessagePipeline: Sendable {
         self.happyInject = happyInject
         self.vkSend = vkSend
         self.resolveTarget = resolveTarget
+        self.slashCommand = slashCommand
         self.storage = storage
         self.clock = clock
     }
@@ -64,8 +70,15 @@ public struct VoiceMessagePipeline: Sendable {
             return
         }
 
-        // S-7: non-audio message → ignore.
+        // S-7 / F3-lite: no audio → slash command или drop.
         guard let audio = message.attachments?.compactMap({ $0.audioMessage }).first else {
+            let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.hasPrefix("/"), let cmd = slashCommand {
+                let handled = await cmd(peerId, text)
+                audit(decision: handled ? "slash_ok" : "slash_unknown", outcome: "success",
+                      msgId: msgId, peerId: peerId, totalMs: ms(since: started))
+                return
+            }
             audit(decision: "drop_not_audio", outcome: "dropped",
                   msgId: msgId, peerId: peerId, totalMs: ms(since: started))
             return
