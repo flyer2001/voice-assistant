@@ -114,7 +114,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         XCTAssertEqual(rec.vkSends[1].1, "ack from assistant")
         XCTAssertEqual(rec.injects.count, 1)
         XCTAssertEqual(rec.injects[0].1, Self.cwd)
-        XCTAssertTrue(rec.injects[0].0.contains("[voice from Sergey, src=vk-transcript, lang=ru]"))
+        XCTAssertTrue(rec.injects[0].0.contains("src=vk-transcript"))
         XCTAssertTrue(rec.injects[0].0.contains("что у меня по cashflow"))
     }
 

@@ -44,10 +44,16 @@ UP=$(curl -sS "https://api.vk.com/method/docs.getMessagesUploadServer?type=audio
 UP_URL=$(echo "$UP" | jq -r '.response.upload_url // empty')
 [ -z "$UP_URL" ] && { echo "no upload_url: $UP" >&2; exit 1; }
 
-# 3) upload
-UPLOAD=$(curl -sS -X POST -F "file=@$TMP;type=audio/ogg" "$UP_URL")
-FILE_TOKEN=$(echo "$UPLOAD" | jq -r '.file // empty')
-[ -z "$FILE_TOKEN" ] && { echo "upload failed: $UPLOAD" >&2; exit 1; }
+# 3) upload — 2 retries with 1s backoff (VK sporadically returns "unknown error")
+FILE_TOKEN=""
+for attempt in 1 2 3; do
+  UPLOAD=$(curl -sS -X POST -F "file=@$TMP;type=audio/ogg" "$UP_URL" || true)
+  FILE_TOKEN=$(echo "$UPLOAD" | jq -r '.file // empty')
+  [ -n "$FILE_TOKEN" ] && break
+  echo "upload attempt $attempt failed: $UPLOAD" >&2
+  [ "$attempt" -lt 3 ] && sleep 1
+done
+[ -z "$FILE_TOKEN" ] && { echo "upload failed after 3 attempts: $UPLOAD" >&2; exit 1; }
 
 # 4) docs.save
 SAVED=$(curl -sS --data-urlencode "file=$FILE_TOKEN" \

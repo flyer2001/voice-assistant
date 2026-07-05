@@ -156,10 +156,10 @@ public struct VoiceMessagePipeline: Sendable {
         // видит его в Happy app. См. memory reference_voice_reply_protocol.md.
         let src = decisionTag == "used_vk" ? "vk-transcript" : "whisper"
         let prefixed = """
-        [voice from Sergey, src=\(src), lang=ru]
-        [reply DEFAULT: `voice-reply-both \(peerId) "<text>"` — text+TTS в VK]
-        [reply TEXT-ONLY для code/list/url (TTS плохо читает): `voice-reply \(peerId) "<text>"`]
-        [ALSO: вывести полный текст ответа в chat, чтоб был в Happy app]
+        [voice from Sergey, src=\(src), lang=ru, peer=\(peerId)]
+        [reply: voice-reply-both / voice-reply / voice-reply-tts <peer> "<text>"]
+        [focus: voice-focus <peer> <X> | voice-focus-clear <peer>]
+        [details: ~/.claude/docs/voice-reply.md — TTS-adapt, focus intents, split text/tts]
 
         \(transcriptText)
         """

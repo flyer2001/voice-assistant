@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# voice-focus-clear <peer_id>
+# Clears /var/lib/voice-bot/focus.json → next voice routes to dispatcher.
+# TTS-acks Sergey «вернулся в диспетчер».
+#
+# Install on VDS:
+#   sudo install -m 755 backend/voice-service/deploy/voice-focus-clear /usr/local/bin/
+set -euo pipefail
+PEER="${1:?peer_id required}"
+echo '{"cwd":null}' > /var/lib/voice-bot/focus.json
+exec /usr/local/bin/voice-reply-tts "$PEER" "вернулся в диспетчер"
