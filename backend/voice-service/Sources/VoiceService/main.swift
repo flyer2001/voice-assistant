@@ -59,6 +59,25 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
 
     let maxAudioS = Int(env["VOICE_MAX_AUDIO_S"] ?? "") ?? 300
 
+    // Phase 6 F2 — focus routing. Reads /var/lib/voice-bot/focus.json per
+    // message. VOICE_FOCUS_ENABLED=false disables (returns default target).
+    let focusEnabled = (env["VOICE_FOCUS_ENABLED"] ?? "true").lowercased() == "true"
+    let focusPath = URL(fileURLWithPath: env["VOICE_FOCUS_PATH"] ?? "/var/lib/voice-bot/focus.json")
+    let focusState = FocusState(path: focusPath)
+    let happyState = HappyState(happyHome: HappyState.defaultHome)
+    try? focusState.initIfAbsent()
+
+    let resolveTargetFn: VoiceMessagePipeline.ResolveTargetFn = { @Sendable in
+        let focus = try? focusState.read()
+        switch focusState.validate(focus, happyState: happyState) {
+        case .focus(let cwd):
+            return (cwd, "focus")
+        case .fallback(let reason):
+            return (targetCwd, "fallback_\(reason)")
+        }
+    }
+    let resolveTarget: VoiceMessagePipeline.ResolveTargetFn? = focusEnabled ? resolveTargetFn : nil
+
     let pipeline = VoiceMessagePipeline(
         targetCwd: targetCwd,
         ownerIds: Set(vkConfig.ownerIds.map { Int64($0) }),
@@ -80,7 +99,8 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
         vkSend: { peer, text in
             _ = try await api.sendMessage(peerId: peer, text: text)
         },
-        storage: storage
+        storage: storage,
+        resolveTarget: resolveTarget
     )
 
     vkSendForConfig = { peer, text in

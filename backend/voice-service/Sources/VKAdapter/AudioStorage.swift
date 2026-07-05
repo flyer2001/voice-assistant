@@ -59,6 +59,8 @@ public struct AuditEntry: Codable, Sendable, Equatable {
     public let totalMs: Int
     public let happyReplyChars: Int?
     public let outcome: String        // "success" | "error" | "dropped"
+    public let targetCwd: String?     // Phase 6 F2 — routed target
+    public let focusSource: String?   // "focus" | "default" | "fallback_no_focus" | "fallback_cwd_missing" | "fallback_session_offline"
 
     public init(
         ts: String, msgId: Int64, peerId: Int64,
@@ -66,7 +68,8 @@ public struct AuditEntry: Codable, Sendable, Equatable {
         transcriptVk: String? = nil, transcriptWhisper: String? = nil,
         decision: String, sttMs: Int? = nil, injectMs: Int? = nil,
         vkSendMs: Int? = nil, totalMs: Int,
-        happyReplyChars: Int? = nil, outcome: String
+        happyReplyChars: Int? = nil, outcome: String,
+        targetCwd: String? = nil, focusSource: String? = nil
     ) {
         self.ts = ts; self.msgId = msgId; self.peerId = peerId
         self.audioPath = audioPath; self.durationS = durationS
@@ -74,6 +77,7 @@ public struct AuditEntry: Codable, Sendable, Equatable {
         self.decision = decision; self.sttMs = sttMs; self.injectMs = injectMs
         self.vkSendMs = vkSendMs; self.totalMs = totalMs
         self.happyReplyChars = happyReplyChars; self.outcome = outcome
+        self.targetCwd = targetCwd; self.focusSource = focusSource
     }
 
     enum CodingKeys: String, CodingKey {
@@ -83,6 +87,7 @@ public struct AuditEntry: Codable, Sendable, Equatable {
         case decision, sttMs = "stt_ms", injectMs = "inject_ms"
         case vkSendMs = "vk_send_ms", totalMs = "total_ms"
         case happyReplyChars = "happy_reply_chars", outcome
+        case targetCwd = "target_cwd", focusSource = "focus_source"
     }
 }
 

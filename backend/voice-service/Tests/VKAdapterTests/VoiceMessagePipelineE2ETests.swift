@@ -53,8 +53,9 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         transcribe: VoiceMessagePipeline.TranscribeFn? = nil,
         happyInject: VoiceMessagePipeline.HappyInjectFn? = nil,
         vkSend: VoiceMessagePipeline.VKSendFn? = nil,
+        resolveTarget: VoiceMessagePipeline.ResolveTargetFn? = nil,
         storageDir: URL? = nil
-    ) -> VoiceMessagePipeline {
+    ) -> (VoiceMessagePipeline, AudioStorage) {
         let dir = storageDir
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("pipe-\(UUID().uuidString)")
@@ -62,7 +63,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
             rawDir: dir.appendingPathComponent("raw"),
             auditPath: dir.appendingPathComponent("audit.jsonl")
         )
-        return VoiceMessagePipeline(
+        let pipe = VoiceMessagePipeline(
             targetCwd: Self.cwd,
             ownerIds: [Self.owner],
             maxDurationS: 60,
@@ -81,8 +82,19 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
             vkSend: vkSend ?? { peer, text in
                 rec.vkSends.append((peer, text))
             },
-            storage: storage
+            storage: storage,
+            resolveTarget: resolveTarget
         )
+        return (pipe, storage)
+    }
+
+    private func readAuditEntries(_ storage: AudioStorage) throws -> [AuditEntry] {
+        let data = try Data(contentsOf: storage.auditPath)
+        let dec = JSONDecoder()
+        return data.split(separator: 0x0a)
+            .compactMap { line -> AuditEntry? in
+                try? dec.decode(AuditEntry.self, from: line)
+            }
     }
 
     // MARK: - S-1 happy path, VK transcript=done
@@ -92,7 +104,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         let (update, msg) = makeUpdate(
             audio: audio(transcript: "что у меня по cashflow", state: "done")
         )
-        let pipe = makePipeline(rec: rec)
+        let (pipe, _) = makePipeline(rec: rec)
 
         await pipe.handle(update, message: msg)
 
@@ -113,7 +125,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         let (update, msg) = makeUpdate(
             audio: audio(transcript: "", state: "in_progress")
         )
-        let pipe = makePipeline(rec: rec)
+        let (pipe, _) = makePipeline(rec: rec)
 
         await pipe.handle(update, message: msg)
 
@@ -129,7 +141,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         struct WErr: Error {}
         let rec = makeRecorder()
         let (update, msg) = makeUpdate(audio: audio())
-        let pipe = makePipeline(
+        let (pipe, _) = makePipeline(
             rec: rec,
             transcribe: { _ in throw WErr() }
         )
@@ -149,7 +161,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         }
         let rec = makeRecorder()
         let (update, msg) = makeUpdate(audio: audio(transcript: "тест", state: "done"))
-        let pipe = makePipeline(
+        let (pipe, _) = makePipeline(
             rec: rec,
             happyInject: { _, _ in throw InjectErr() }
         )
@@ -169,7 +181,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         }
         let rec = makeRecorder()
         let (update, msg) = makeUpdate(audio: audio(transcript: "x", state: "done"))
-        let pipe = makePipeline(
+        let (pipe, _) = makePipeline(
             rec: rec,
             happyInject: { _, _ in throw TErr() }
         )
@@ -187,7 +199,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
             fromId: Self.stranger,
             audio: audio(transcript: "anything", state: "done")
         )
-        let pipe = makePipeline(rec: rec)
+        let (pipe, _) = makePipeline(rec: rec)
 
         await pipe.handle(update, message: msg)
 
@@ -201,7 +213,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
     func test_S7_textOnly_ignored() async {
         let rec = makeRecorder()
         let (update, msg) = makeUpdate(text: "просто текст", audio: nil)
-        let pipe = makePipeline(rec: rec)
+        let (pipe, _) = makePipeline(rec: rec)
 
         await pipe.handle(update, message: msg)
 
@@ -214,7 +226,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
     func test_S8_audioTooLong_rejected() async {
         let rec = makeRecorder()
         let (update, msg) = makeUpdate(audio: audio(duration: 120))
-        let pipe = makePipeline(rec: rec)
+        let (pipe, _) = makePipeline(rec: rec)
 
         await pipe.handle(update, message: msg)
 
@@ -222,5 +234,56 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
         XCTAssertEqual(rec.downloads.count, 0)
         XCTAssertEqual(rec.vkSends.count, 1)
         XCTAssertTrue(rec.vkSends[0].1.contains("> 60s"))
+    }
+
+    // MARK: - Phase 6 F2 — S9/S10/S11 focus routing
+
+    func test_S9_focusValid_routesToFocusCwd_auditRecordsFocus() async throws {
+        let rec = makeRecorder()
+        let (update, msg) = makeUpdate(audio: audio(transcript: "поехали", state: "done"))
+        let (pipe, storage) = makePipeline(
+            rec: rec,
+            resolveTarget: { ("/root/projects/cashflow", "focus") }
+        )
+
+        await pipe.handle(update, message: msg)
+
+        XCTAssertEqual(rec.injects.count, 1)
+        XCTAssertEqual(rec.injects[0].1, "/root/projects/cashflow", "inject routed to focus cwd, not default")
+
+        let audits = try readAuditEntries(storage)
+        XCTAssertEqual(audits.last?.targetCwd, "/root/projects/cashflow")
+        XCTAssertEqual(audits.last?.focusSource, "focus")
+    }
+
+    func test_S10_focusOffline_fallbackToDefault_auditRecordsFallback() async throws {
+        let rec = makeRecorder()
+        let (update, msg) = makeUpdate(audio: audio(transcript: "тест", state: "done"))
+        // Simulate FocusState.validate → .fallback("session_offline"): resolver
+        // returns default cwd + fallback tag (this is exactly what the
+        // production wire does for a stale focus).
+        let (pipe, storage) = makePipeline(
+            rec: rec,
+            resolveTarget: { (Self.cwd, "fallback_session_offline") }
+        )
+
+        await pipe.handle(update, message: msg)
+
+        XCTAssertEqual(rec.injects[0].1, Self.cwd, "fallback → default cwd")
+        let audits = try readAuditEntries(storage)
+        XCTAssertEqual(audits.last?.focusSource, "fallback_session_offline")
+    }
+
+    func test_S11_noResolver_defaultTargetCwd_focusSourceDefault() async throws {
+        let rec = makeRecorder()
+        let (update, msg) = makeUpdate(audio: audio(transcript: "по умолчанию", state: "done"))
+        let (pipe, storage) = makePipeline(rec: rec)  // no resolveTarget
+
+        await pipe.handle(update, message: msg)
+
+        XCTAssertEqual(rec.injects[0].1, Self.cwd)
+        let audits = try readAuditEntries(storage)
+        XCTAssertEqual(audits.last?.targetCwd, Self.cwd)
+        XCTAssertEqual(audits.last?.focusSource, "default")
     }
 }

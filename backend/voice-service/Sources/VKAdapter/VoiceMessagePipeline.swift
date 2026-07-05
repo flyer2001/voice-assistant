@@ -9,6 +9,10 @@ public struct VoiceMessagePipeline: Sendable {
     public typealias TranscribeFn = @Sendable (_ audio: Data) async throws -> String
     public typealias HappyInjectFn = @Sendable (_ text: String, _ targetCwd: String) async throws -> String
     public typealias VKSendFn = @Sendable (_ peerId: Int64, _ text: String) async throws -> Void
+    /// Phase 6 F2 — resolve routing target per message. Return
+    /// `(cwd, source)` where `source` = "focus" | "default" | "fallback_*".
+    /// nil → use `targetCwd` + "default".
+    public typealias ResolveTargetFn = @Sendable () -> (cwd: String, source: String)
 
     public let targetCwd: String
     public let ownerIds: Set<Int64>
@@ -17,6 +21,7 @@ public struct VoiceMessagePipeline: Sendable {
     public let transcribe: TranscribeFn
     public let happyInject: HappyInjectFn
     public let vkSend: VKSendFn
+    public let resolveTarget: ResolveTargetFn?
     public let storage: AudioStorage
     public let clock: @Sendable () -> Date
 
@@ -29,6 +34,7 @@ public struct VoiceMessagePipeline: Sendable {
         happyInject: @escaping HappyInjectFn,
         vkSend: @escaping VKSendFn,
         storage: AudioStorage,
+        resolveTarget: ResolveTargetFn? = nil,
         clock: @Sendable @escaping () -> Date = { .now }
     ) {
         self.targetCwd = targetCwd
@@ -38,6 +44,7 @@ public struct VoiceMessagePipeline: Sendable {
         self.transcribe = transcribe
         self.happyInject = happyInject
         self.vkSend = vkSend
+        self.resolveTarget = resolveTarget
         self.storage = storage
         self.clock = clock
     }
@@ -144,10 +151,13 @@ public struct VoiceMessagePipeline: Sendable {
         \(transcriptText)
         """
 
+        // Phase 6 F2 — resolve routing target (focus.json vs default).
+        let (routeCwd, focusSource) = resolveTarget?() ?? (targetCwd, "default")
+
         let injectStart = clock()
         let reply: String
         do {
-            reply = try await happyInject(prefixed, targetCwd)
+            reply = try await happyInject(prefixed, routeCwd)
         } catch {
             // S-4 (no running session) / S-5 (reply timeout) / др. инжект-ошибки.
             try? await vkSend(peerId, "⚠️ диспетчер не ответил: \(label(error))")
@@ -156,7 +166,8 @@ public struct VoiceMessagePipeline: Sendable {
                   audioPath: audioPath?.path, durationS: audio.duration,
                   transcriptVk: transcriptVk, transcriptWhisper: transcriptWhisper,
                   sttMs: sttMs, vkSendMs: vkSendMs,
-                  totalMs: ms(since: started))
+                  totalMs: ms(since: started),
+                  targetCwd: routeCwd, focusSource: focusSource)
             return
         }
         let injectMs = ms(since: injectStart)
@@ -169,7 +180,8 @@ public struct VoiceMessagePipeline: Sendable {
               transcriptVk: transcriptVk, transcriptWhisper: transcriptWhisper,
               sttMs: sttMs, injectMs: injectMs, vkSendMs: vkSendMs,
               totalMs: ms(since: started),
-              happyReplyChars: reply.count)
+              happyReplyChars: reply.count,
+              targetCwd: routeCwd, focusSource: focusSource)
     }
 
     // MARK: - helpers
@@ -191,7 +203,8 @@ public struct VoiceMessagePipeline: Sendable {
         audioPath: String? = nil, durationS: Int? = nil,
         transcriptVk: String? = nil, transcriptWhisper: String? = nil,
         sttMs: Int? = nil, injectMs: Int? = nil, vkSendMs: Int? = nil,
-        totalMs: Int, happyReplyChars: Int? = nil
+        totalMs: Int, happyReplyChars: Int? = nil,
+        targetCwd: String? = nil, focusSource: String? = nil
     ) {
         let entry = AuditEntry(
             ts: AudioStorage.compactStamp(from: clock()),
@@ -199,7 +212,8 @@ public struct VoiceMessagePipeline: Sendable {
             audioPath: audioPath, durationS: durationS,
             transcriptVk: transcriptVk, transcriptWhisper: transcriptWhisper,
             decision: decision, sttMs: sttMs, injectMs: injectMs, vkSendMs: vkSendMs,
-            totalMs: totalMs, happyReplyChars: happyReplyChars, outcome: outcome
+            totalMs: totalMs, happyReplyChars: happyReplyChars, outcome: outcome,
+            targetCwd: targetCwd, focusSource: focusSource
         )
         try? storage.appendAudit(entry)
     }
