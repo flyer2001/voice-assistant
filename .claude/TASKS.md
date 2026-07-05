@@ -2,27 +2,74 @@
 
 > Active sprint. Only open items: `[ ]` open, `[~]` in-progress, `[!]` blocked.
 > Закрытые задачи — в `.claude/CHANGELOG.md` (prepend через `/endsession`).
-> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl, **MVP_thin² VK voice in / text out E2E green 2026-06-23**, **OP1 Whisper systemd unit на ubuntu-home 2026-06-23** — детали в CHANGELOG.
+> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl, **MVP_thin² VK voice in / text out E2E green 2026-06-23**, **OP1 Whisper systemd unit на ubuntu-home 2026-06-23**, **async callback + TTS + dual channel 2026-07-05** — детали в CHANGELOG.
 
 ---
 
-## MVP — operational hardening (Phase 3)
+## Phase 6 — C hybrid multi-project focus routing (next sprint)
 
-- [ ] **OP3**: assistant Happy session keep-running на VDS. Сейчас target,
-  ручной запуск через windows-setup. Auto-restart через `happy --reattach`
-  не нужен на MVP — Sergey запускает руками когда работает.
+**Цель:** voice → правильная session напрямую, dispatcher не оверлоадится.
 
-## MVP — dogfood / nice-to-have
+Sergey markup'ом переключает focus (voice-backend routing), проектные sessions отвечают в VK сами через `voice-reply-*` (async callback уже готов).
+
+### F1 — Focus state file (backend)
+
+- [ ] `/var/lib/voice-bot/focus.json` — schema `{cwd, since, set_by_msg, note}` (все optional; отсутствие или `cwd=null` → default = dispatcher)
+- [ ] `FocusState.swift` в VoiceServiceCore: read/write atomic (tmp + rename), validate cwd существует, session running check через HappyState.pickRunningSession (fallback → dispatcher если session offline)
+- [ ] Init file если отсутствует: `{"cwd": null}` при первом запуске
+- [ ] Tests: read/write roundtrip, missing file → default, cwd invalid → default, session offline → default с fallback log
+
+### F2 — Pipeline routing (backend)
+
+- [ ] `VoiceMessagePipeline` перед `injectNoWait` peek `focus.json`
+- [ ] Если valid focus → target_cwd = focus.cwd; иначе default (текущий env `VOICE_TARGET_CWD`)
+- [ ] Audit добавляет `target_cwd` + `focus_source` (`focus.json` | `default` | `fallback_offline`) fields
+- [ ] Tests: S9 focus set + running → routes to focus. S10 focus set + offline → fallback + log. S11 focus null → default
+
+### F3 — Focus commands (dispatcher)
+
+- [ ] Dispatcher memory `feedback_voice_focus_commands.md` в assistant:
+  - «focus X» / «работаем с X» / «в X» → парсит X, пишет focus.json
+  - «выйти» / «назад» / «вернись» → cwd=null
+  - «в X: <текст>» (one-shot без смены focus) → inject.mjs → воис не меняет focus
+  - «статус всех» / «что везде» — dispatcher spike (list_active + summary) не меняя focus
+- [ ] Update pipeline prefix hint: упомянуть focus commands + текущий target_cwd
+
+### F4 — Global voice reply protocol
+
+- [ ] Переписать `~/.claude/CLAUDE.md` — добавить секцию «Voice reply» с wrappers references
+- [ ] Убрать / упростить `reference_voice_reply_protocol.md` в assistant memory (не дублировать)
+- [ ] Каждая проектная session автоматически знает как отвечать
+
+### F5 — Pattern analyzer (on-demand skill)
+
+- [ ] `docs/voice-patterns.md` — spec pattern analysis format + input sources
+- [ ] Skill / prompt template: subagent читает `audit.jsonl` + dispatcher JSONL за N дней, корреляция ±30s
+- [ ] Output: `bench/analytics/voice-patterns-YYYY-MM-DD.md` с топ-N n-grams, verb frequencies, project mentions, focus events, bad transcriptions (heuristic), dispatcher tool-call overhead per intent
+- [ ] Propose canned shortcuts → v0.3 intent-shortcuts backlog items
+- [ ] Zero infra в prod, всё on-request
+
+**AC (acceptance criteria):**
+- Sergey говорит «focus cashflow» → следующий войс лендит в cashflow session (проверить audit target_cwd) → cashflow отвечает voice-reply-both сам → Sergey получает reply от cashflow, не dispatcher
+- Sergey говорит «выйти» → следующий войс снова в dispatcher
+- Sergey говорит «в voice: покажи tasks» → один войс в voice session, focus не меняется
+- Sergey запросил «/voice-patterns week» → отчёт с 10+ фразами и рекомендациями появляется в bench/analytics/
+
+---
+
+## MVP — dogfood (passive collection)
 
 - [ ] **DG1**: ad-hoc quality feedback. Bot уже echo'ит «👂 услышал: ...».
   Плохая расшифровка → Sergey пишет в любую Claude сессию «msg N плохо: X»,
-  собираем паттерн post-hoc. Structured corpus collection — overkill для MVP.
+  собираем паттерн post-hoc. Structured corpus collection — overkill.
   WER vs VK = blocked (skip `audio_message_transcript` event per SP3).
-- [ ] **DG2**: Happy reply latency variance — msg179 (44s audio) дало
-  inject_ms=27.6s. Большая нагрузка диспетчера или большой output? Логировать
-  prompt/output sizes в audit для корреляции.
-- [ ] **DG3**: VOICE_MAX_AUDIO_S=300 — verify edge cases 290s / 295s / 305s
-  (5 min VK upper bound).
+  Частично superseded F5 pattern analyzer (в Phase 6). DG2/DG3 закрыты
+  async callback'ом — детали в CHANGELOG.
+
+## MVP — operational (deferred)
+
+- [ ] **OP3**: assistant Happy session keep-running на VDS. Ручной запуск,
+  MVP не требует. Sergey запускает через windows-setup когда работает.
 
 ---
 

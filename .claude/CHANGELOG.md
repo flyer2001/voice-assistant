@@ -1,3 +1,47 @@
+## [2026-07-05] async callback + TTS + dual channel + Phase 6 C hybrid plan — 3 commits
+
+**Сделано:**
+- ✅ **OP1** Whisper FastAPI systemd unit на ubuntu-home (2026-06-23, отдельный commit `89f374c`) — `/etc/whisper.env` + `/etc/systemd/system/whisper.service`, `RequiresMountsFor=/mnt/win-share`, `User=flyer2001`, `Restart=on-failure`. Smoke: 3.12s audio → 674ms STT
+- ✅ **MVP.md pivot sync** — переписан под VK бота (Phase 1+2 DONE, Phase 3 hardening, Phase 5 iOS deferred). Устаревший iOS/macOS план из v0.0 убран
+- ✅ **Async callback pattern** (commit `3317925`) — sync wait в pipeline упирался в timeout. `LiveHappyInjectMessenger.injectNoWait` (POST без JSONL watcher), `POST /v1/vk/send` endpoint (Bearer auth, `Configuration.vkSendProvider` hook), pipeline ack «👍 принял» вместо ожидания. Dispatcher шлёт reply async через `voice-reply` wrapper (bash, `/etc/voice-backend.env` → 1 call вместо 5-8 tool call'ов на token discovery)
+- ✅ **TTS reply** (commit `2d9fac9`) — `voice-reply-tts` bash wrapper. Yandex SpeechKit v1 alena oggopus (~/tmp/*.ogg) → VK docs.getMessagesUploadServer → upload → docs.save → messages.send с `attachment=doc<owner>_<id>`. Total ~3s end-to-end. VK group token re-issued с `docs` scope
+- ✅ **Dual channel** (commit `cf987c9`) — `voice-reply-both` wrapper вызывает text+TTS последовательно (text первым чтоб в VK timeline text bubble выше voice bubble). Prefix hint в pipeline обновлён с default=both + требование финального полного текста в chat (Happy app)
+- ✅ **Assistant memory** — `reference_voice_reply_protocol.md` в auto-memory с всеми 3 wrappers + when-to-use guidance + ALSO-chat правило
+- ✅ **Phase 6 C hybrid спec в TASKS** — F1-F5 tickets (focus.json + routing + commands + global CLAUDE.md + pattern analyzer). Carry-over для новой сессии
+
+**Решения:**
+- **Async callback pivot** — sync wait не масштабируется на heavy dispatcher work (msg185 timeout @ 30s boundary, msg179 inject_ms=25s outlier). Fire-and-forget POST + отдельный callback endpoint = решает архитектурно
+- **Bash wrappers, не Swift endpoints** — 3 wrappers (voice-reply, voice-reply-tts, voice-reply-both) в `/usr/local/bin` дешевле чем 3 REST endpoints с Config hooks. Только `/v1/vk/send` в Swift (нужно для callback), остальное — bash
+- **Dual channel default** (не TTS-only) — Sergey подтвердил preference «везде хорошо» после voice-reply-both. Auto heuristic не строим (сложно на границах), markup Sergey'я работает как opt-out через кириллицу или явную инструкцию в войсе
+- **Prefix > memory** для dispatcher hints — memory update alone не сработал (dispatcher следовал inject prefix strict'о). Prefix обновлён параллельно с memory для consistency
+- **C hybrid, не B** для multi-project routing — dispatcher остаётся оркестратором (`list_active_sessions`, cross-session inject через inject.mjs), но focus.json позволяет direct routing в проектные sessions когда Sergey markup'ом переключает. Проектные sessions не знают про VK — coupling минимальный
+- **Pattern analyzer = on-demand skill, не realtime infra** — audit.jsonl уже пишет transcript_whisper + duration + msg_id, достаточно для post-hoc анализа. Subagent'ом читает audit + dispatcher JSONL за N дней, correlates ±30s window, output в `bench/analytics/voice-patterns-YYYY-MM-DD.md`. Zero prod infra
+
+**Открытое:**
+- **Phase 6 C hybrid** (F1-F5) — вся работа в carry-over для новой сессии. ~1.5-2h scope
+- **DG1** ad-hoc quality feedback — passive, будет собираться через F5 pattern analyzer автоматом когда F5 готов
+- **OP3** assistant Happy keep-running — declared «MVP не нужен», ручной запуск через windows-setup
+- **VK Whisper quirk** — латинские аббревиатуры («TTS», «API») читаются криво. Workaround = кириллица если важно
+- **Assistant session context** — session running но 96%+ context в старой сессии `f37805f2`. Sergey может compact / open new сам — не блокер voice pipeline
+
+**Файлы:**
+- backend/voice-service/Sources/VoiceServiceCore/LiveHappyInjectMessenger.swift (injectNoWait)
+- backend/voice-service/Sources/VoiceServiceCore/Configuration.swift (vkSendProvider hook)
+- backend/voice-service/Sources/VoiceServiceCore/VoiceServiceApp.swift (POST /v1/vk/send)
+- backend/voice-service/Sources/VKAdapter/VoiceMessagePipeline.swift (prefix updates × 3 итерации)
+- backend/voice-service/Sources/VoiceService/main.swift (injectNoWait wire + vkSendProvider)
+- backend/voice-service/deploy/voice-reply (new bash wrapper)
+- backend/voice-service/deploy/voice-reply-tts (new bash wrapper)
+- backend/voice-service/deploy/voice-reply-both (new bash wrapper)
+- /usr/local/bin/{voice-reply,voice-reply-tts,voice-reply-both} (VDS runtime, не в repo)
+- /etc/whisper.env + /etc/systemd/system/whisper.service (ubuntu-home runtime, не в repo)
+- /etc/yandex_speechkit.env (VDS runtime, не в repo)
+- MVP.md (pivot sync под VK bot)
+- .claude/TASKS.md (F1-F5 spec, DG2/DG3 закрыты async'ом)
+- .claude/CHANGELOG.md (этот файл)
+- /root/.claude/projects/-root-projects-assistant/memory/reference_voice_reply_protocol.md (new + iteration updates)
+- /root/.claude/projects/-root-projects-assistant/memory/MEMORY.md (index entry)
+
 ## [2026-06-23] MVP_thin² VK voice in / text out — E2E green, 95 tests, 5 commits
 
 **Сделано:**
