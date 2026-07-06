@@ -1,3 +1,50 @@
+## [2026-07-05] Phase 6 C hybrid shipped — F1/F2/F3-lite/F3-voice/F4/F5, 3 commits
+
+**Сделано:**
+- ✅ F1 `FocusState.swift` в VoiceServiceCore: read/write atomic (`Data.write(.atomic)`), validate → `.focus(cwd)` / `.fallback(reason)`. Path `/var/lib/voice-bot/focus.json`, initIfAbsent. Tests: 7/7 green (read-missing, roundtrip, initEmpty, validate no_focus/cwd_missing/session_offline/focus).
+- ✅ F2 `VoiceMessagePipeline.resolveTarget` closure. `AuditEntry` +`target_cwd` +`focus_source` (optional, back-compat). `main.swift` wire: `VOICE_FOCUS_ENABLED=true` default + `VOICE_FOCUS_PATH`. Tests: S9 focus routes, S10 fallback, S11 no-resolver default.
+- ✅ F3-lite VK text slash commands (`/focus <name>`, `/focus`, `/to_assistant`, `/reset`, `/exit`, `/help`). `SlashCommandFn` closure в pipeline. Wire в `main.swift` с alias-check + FileManager.exists validation. Audit: `slash_ok`/`slash_unknown`.
+- ✅ F3-voice bash wrappers: `voice-focus <peer> <name>` + `voice-focus-clear <peer>` в `deploy/`, installed на VDS `/usr/local/bin/`. Alias table (дневник→myRep, кэшфлоу→cashflow, войс→voice, ассистент/диспетчер→clear-delegate). Wrapper пишет focus.json + TTS-ack через `voice-reply-tts`.
+- ✅ F4 global voice-reply protocol: `~/.claude/docs/voice-reply.md` (83+ lines) — wrappers install/quirks/focus routing/TTS-adapt rule. `~/.claude/CLAUDE.md` +секция `## Ответ на войс от Sergey'я` (17 lines) с pointer'ами. Assistant memory `reference_voice_reply_protocol.md` ужат 82→26 lines в thin pointer.
+- ✅ F5 pattern analyzer spec: `docs/voice-patterns.md` (196 lines) — subagent-driven on-demand analysis. Input: `audit.jsonl` + optional Claude session transcripts join. Output: `bench/analytics/voice-patterns-YYYY-MM-DD.md` с n-grams, verb freqs, project mentions, focus events, bad transcriptions (Jaro heuristic), canned shortcut candidates.
+- ✅ TTS-adapt rule записан в global CLAUDE.md: 1-2 короткие фразы без англицизмов/путей/имён файлов/номеров ошибок. Пример правильного split (voice-reply текст + voice-reply-tts коротко).
+- ✅ voice-reply-tts retry: 2 попытки на VK upload шаге с 1s backoff — покрывает transient `unknown error` от `docs.getMessagesUploadServer`.
+- ✅ Pipeline prefix compressed 6→5 lines (~500B → ~300B). Peer_id inlined once, wrapper описания переехали в global CLAUDE.md.
+- ✅ E2E verified twice on VDS: (1) manual focus.json → myRep, войс routed correctly, audit `target_cwd=/root/projects/myRep, focus_source=focus`; (2) полный voice-command flow — Sergey войс «фокусируемся на voice сессии» → dispatcher вызвал `voice-focus 360258728 voice` → TTS-ack «переключил на voice» пришёл в VK → следующий войс landed в voice session (audit подтвердил).
+
+**Решения:**
+- **F3-full deferred**, F3-lite + F3-voice покрывают use case. F3-lite = deterministic slash-команды (защита от Whisper-mistranslate: «кэшфлоу» vs «cashflow»); F3-voice = hands-free через alias-table + TTS-ack. Reopen F3-full только если voice-only device UX реально понадобится.
+- **Focus wrapper via bash, не Swift**. Экономия: не нужно тянуть FocusState через VKAdapter (VKAdapter не depends on VoiceServiceCore). Bash wrapper = 25 lines, атомарный write через `>` shell redirect.
+- **VOICE_FOCUS_ENABLED default true** для боевого использования. Кильсвитч через env если понадобится disable.
+- **Prefix authoritative над memory** (per prior feedback). Даже после compression prefix задаёт критичные wrapper команды inline, memory даёт deep context.
+- **TTS-адаптация — instruction, не wrapper change**. `voice-reply-both` тот же (text = TTS). Правильный UX = раздельные вызовы `voice-reply` (полный) + `voice-reply-tts` (короткий чистый). Rule в global CLAUDE.md.
+
+**Открытое:**
+- F3-full voice-command focus dispatcher NLP — deferred, likely unnecessary
+- F5 pattern analyzer первый runtime run — spec готов, реального прогона не было
+- «в X: одноразовый» pattern — не специфицирован, deferred
+- «статус всех» dispatcher spike — deferred
+- v0.3 intent shortcuts (regex на VDS) — backlog
+- iOS/macOS клиент (Phase 5) — backlog, наработки Phase 1 reuse-ready
+
+**Файлы:**
+- backend/voice-service/Sources/VoiceServiceCore/FocusState.swift (new)
+- backend/voice-service/Sources/VKAdapter/AudioStorage.swift (+target_cwd/focus_source в AuditEntry)
+- backend/voice-service/Sources/VKAdapter/VoiceMessagePipeline.swift (resolveTarget + slashCommand + slim prefix)
+- backend/voice-service/Sources/VoiceService/main.swift (FocusState + HappyState + slashHandler wire)
+- backend/voice-service/Tests/VoiceServiceCoreTests/FocusStateTests.swift (new, 7 tests)
+- backend/voice-service/Tests/VKAdapterTests/VoiceMessagePipelineE2ETests.swift (+S9/S10/S11 + prefix assertion)
+- backend/voice-service/deploy/voice-focus (new)
+- backend/voice-service/deploy/voice-focus-clear (new)
+- backend/voice-service/deploy/voice-reply-tts (+retry loop)
+- docs/voice-patterns.md (new, F5 spec)
+- .claude/TASKS.md (Phase 6 shipped, F3-full/F5 runtime deferred)
+- ~/.claude/CLAUDE.md (outside git — voice-reply section + focus voice rule + TTS-adapt rule)
+- ~/.claude/docs/voice-reply.md (outside git — new global doc)
+- /root/.claude/projects/-root-projects-assistant/memory/reference_voice_reply_protocol.md (outside git — ужат в thin pointer)
+
+Commits: c9bc8c1 (F1+F2+F5) → ef27b01 (F3-lite) → 5a0906b (F3-voice + retry + slim prefix).
+
 ## [2026-07-05] async callback + TTS + dual channel + Phase 6 C hybrid plan — 3 commits
 
 **Сделано:**

@@ -8,15 +8,19 @@
 
 ## Phase 6 — C hybrid multi-project focus routing
 
-**Shipped 2026-07-05** (F1/F2/F3-lite/F4/F5). E2E green с /root/projects/myRep как focus. Детали в CHANGELOG.
+**Shipped 2026-07-05** (F1/F2/F3-lite/F3-voice/F4/F5). E2E green: manual focus.json → myRep (round 1) + full voice-command flow → /root/projects/voice (round 2). Детали в CHANGELOG.
 
 Остались backlog-items:
 
-### F3-full — Voice-command focus (deferred, likely unnecessary)
+### F3-full — Voice-command dispatcher NLP (deferred, likely unnecessary)
 
-F3-lite (slash commands `/focus <name>`, `/to_assistant` в VK text) уже покрывает use case без Whisper-mistranslate риска. F3-full = «focus кэшфлоу» голосом → dispatcher memory `feedback_voice_focus_commands.md` в assistant парсит + пишет focus.json.
+F3-lite (VK slash `/focus <name>`) + F3-voice (bash wrappers `voice-focus`/`voice-focus-clear` с alias table) уже покрывают use case:
+- Slash-команды — защищены от Whisper mistranslate («кэшфлоу» vs «cashflow»)
+- Voice wrappers — hands-free, alias «дневник→myRep», TTS-ack «переключил на X»
 
-Reopen только если Sergey реально захочет голосом переключать (телефон в машине без клавиатуры и т.п.).
+F3-full = full dispatcher NLP memory `feedback_voice_focus_commands.md` для нетривиальных фраз («работаем с проектом дневник, только текстом» → set focus + set text-only mode).
+
+Reopen только если понадобится ловить сложные intents (флаги, one-shot patterns и т.д.).
 
 - [ ] «в X: <текст>» one-shot pattern (без смены focus) — если понадобится
 - [ ] «статус всех» dispatcher spike (list_active + summary)
