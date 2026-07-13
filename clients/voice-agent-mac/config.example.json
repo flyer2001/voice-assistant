@@ -1,0 +1,8 @@
+{
+    "openai_api_key": "sk-...",
+    "porcupine_access_key": "PICOVOICE_KEY_FROM_CONSOLE",
+    "porcupine_keyword_path": "/Users/sergey/voice-agent-mac/alyonka_mac.ppn",
+    "realtime_model": "gpt-4o-realtime-preview-2024-12-17",
+    "voice": "verse",
+    "system_prompt": "Ты голосовой ассистент по имени Алёнка. Отвечаешь кратко и разговорно, по-русски. Максимум 2-3 предложения если сам не решил иначе. Пользователь сейчас играет в гоночную игру с рулём — руки заняты, старайся не отвлекать."
+}

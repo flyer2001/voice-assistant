@@ -1,3 +1,46 @@
+## [2026-07-13] Phase 7 MCU-client + voice-agent-mac MVP scaffolded
+
+**Сделано:**
+- ✅ Phase 7 MCU-client — полная hardware архитектура записана в `docs/mcu-client.md`: authoritative K1 Kenwood pinout (Baofeng UV-5R schematic verified), wire schema, порядок P0-P5, testbench без Vostok, macOS parallel prototype spec, future expansion (LoRa/mesh/Starlink/keyboard), 3D-корпус requirements с резервом под extra battery (Battery Bottom 54×54×20мм или LiPo pouch 20×70×10мм)
+- ✅ Vostok HBT-3 гарнитура — reality check: гарнитура **работает** (проверено на рации), моё раннее «сgorелая speaker Tip↔Sleeve=0» было ошибочной интерпретацией (DC-blocking capacitor + BTL amp — DC continuity test не диагностирует). Нужен speaker-class amp (PAM8302/MAX98357), не headphone amp
+- ✅ macos-ptt scaffold — `clients/macos-ptt/` (~350 lines Swift: Package.swift + Sources/VoicePTT/{main,HotkeyMonitor,AudioRecorder,BackendClient,Config}.swift + config.example.json + README). Global F19 hotkey, CGEventTap, multipart POST /v1/voice/audio на backend (уже есть), notification + `say`-playback. TDD refactor pending
+- ✅ macos-ptt MVP spec + week-log — `docs/macos-ptt-mvp-spec.md` (8 user stories US-1..US-8, TDD ladder, JSONL schema с обязательным logging US-6, anti-cementing rules) + `docs/macos-ptt-week-log.md` (template опросника недели)
+- ✅ voice-agent-mac scaffold — `clients/voice-agent-mac/` (agent.py ~110 lines Python: Porcupine wake + OpenAI Realtime API, hands-free для игр). Затем refactored: OpenAI отменён, идём на **свой стек** (Whisper local + Claude Fable 5 + Yandex SpeechKit)
+- ✅ voice-agent-mac MVP plan — `docs/voice-agent-mac-mvp-plan.md`: 8 US, T0-T12 задачи, cost estimate ($0.005/turn, $15/mo). Repo единый (не отдельный)
+- ✅ VDS↔mac-home reverse tunnel восстановлен — старый VDS IP `194.4.49.217` в `~/.ssh/config` `Host ufohosting` на mac-home заменён на DNS `cashflow-game.ru`. Добавлен `mac-home-tunnel` alias на VDS (localhost:2222). Sergey протестировал переключение WiFi↔LAN, tunnel держится через autossh KeepAlive
+- ✅ Memory updates: `project_phase7_mcu_client`, `feedback_bt_headache_no_bt_near_head`, `feedback_options_leave_room_for_other` (2-3 options max), полный rewrite `reference_mac_home_env` (актуальное состояние 2026-07-13)
+- ✅ AliExpress закупка (черновой) — 4 identified + 1 pending + missing list в `docs/mcu-client.md`
+
+**Решения:**
+- **Финальный стек voice-agent-mac:** STT=mlx-whisper local (mac-home Metal), LLM=Claude Fable 5 (Anthropic API), TTS=Yandex SpeechKit `alena` через VDS remote wrapper (без key management). Отказ от OpenAI Realtime API
+- **Language:** Python для voice-agent-mac (mlx-whisper native, streaming chunk TTS ощущается как real-time), Swift Embedded для CoreS3 firmware v0.2
+- **Hardware speaker path:** speaker-class amp обязателен для 10Ω BC-transducer (PAM8302 для Mac test, MAX98357 I2S для CoreS3 wearable), НЕ headphone amp
+- **Mic на iPhone:** возможен через DIY passive adapter (2.5mm TRS female jack → 3.5mm TRRS male plug, ~200₽ + пайка). PTT игнорируется
+- **Kenwood K1 authoritative pinout:** big 3.5mm mono TS (Tip=SPK+ с +3-4V DC bias, Sleeve=GND), small 2.5mm TRS (Tip=MIC+ с +3.3V bias, Ring=PTT sense, Sleeve=GND)
+- **No BT near head** (headache trigger — Sergey feedback), only wired BC or dispenser BT-модуль в кармане
+- **CoreS3 SE** выбран (не Lite — mic/speaker убраны; не full — DinBase балласт)
+- **CoreS3 как external BT HFP headset для iPhone calls** — reasible v0.2 (BT в кармане, HBT-3 проводом)
+
+**Открытое:**
+- Anthropic API key нужен для Claude Fable 5 (уточнить актуальный model ID)
+- Porcupine access key + train «Алёнка» keyword (Sergey руками)
+- Setup mlx-whisper + ffmpeg + Python 3.11 на mac-home (`brew install python@3.11 ffmpeg portaudio` + `pip install mlx-whisper anthropic pvporcupine sounddevice numpy`)
+- Clamshell fix apply на mac-home: `sudo pmset -a sleep 0 disksleep 0 tcpkeepalive 1` (сейчас sleep=5, mac-home засыпает при закрытой крышке)
+- voice-repo mount на mac-home (sshfs или git clone)
+- `/v1/voice/notify` endpoint на voice-backend + `voice-notify <text>` bash wrapper для heartbeat уведомлений от других сессий
+- Item 5 AliExpress корзины uncdefined (1005008262791373) + missing из плана: 3.5mm TRRS male plug + MAX98357 breakout
+- Vostok HBT-3 speaker impedance mismatch с consumer amp — не возврат, workaround через PAM8302/MAX98357
+
+**Файлы:**
+- .claude/TASKS.md
+- clients/macos-ptt/{Package.swift,README.md,config.example.json,Sources/VoicePTT/*.swift}
+- clients/voice-agent-mac/{agent.py,requirements.txt,config.example.json,README.md}
+- docs/macos-ptt-mvp-spec.md
+- docs/macos-ptt-week-log.md
+- docs/mcu-client.md
+- docs/voice-agent-mac-mvp-plan.md
+- ~/.claude/projects/-root-projects-voice/memory/{project_phase7_mcu_client,feedback_bt_headache_no_bt_near_head,feedback_options_leave_room_for_other,reference_mac_home_env,MEMORY}.md
+
 ## [2026-07-05] Phase 6 C hybrid shipped — F1/F2/F3-lite/F3-voice/F4/F5, 3 commits
 
 **Сделано:**

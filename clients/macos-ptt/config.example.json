@@ -1,0 +1,8 @@
+{
+    "backendURL": "https://cashflow-game.ru",
+    "backendToken": "FILL_ME_FROM_VDS_secrets_local",
+    "clientId": "mac-ptt-dev",
+    "hotkeyCode": 61,
+    "speakReply": true,
+    "sayVoice": "Yuri"
+}

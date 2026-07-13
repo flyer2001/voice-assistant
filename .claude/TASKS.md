@@ -75,6 +75,123 @@ Spec написан (`docs/voice-patterns.md`). Осталось:
 - [ ] UI snapshot тесты state-dump style.
 - [ ] Doc-drift tests.
 
+### Phase 7 — MCU wearable client (BC-гарнитура + PTT, non-BT)
+
+Мотивация: iPhone-клиент упирается в push/background/dev-account. Sergey
+от BT-наушников быстро болит голова → нужен non-BT wearable. Костная
+проводимость + костный микрофон под шлем/в шум. Полный спек:
+[`docs/mcu-client.md`](../docs/mcu-client.md).
+
+**P0-alt. Hands-free voice agent (voice-agent-mac, MVP v0.1)**
+
+**Refactored 2026-07-13** — отказ от OpenAI Realtime (Path A). Идём сразу
+на свой стек:
+- STT: mlx-whisper local на mac-home (Metal)
+- LLM: Claude Fable 5 (Anthropic API)
+- TTS: Yandex SpeechKit `alena` через VDS `voice-reply-tts` remote
+- Wake: Porcupine custom «Алёнка»
+
+Полный спек: [`docs/voice-agent-mac-mvp-plan.md`](../docs/voice-agent-mac-mvp-plan.md).
+
+**Задачи первой недели (T1-T12 в plan doc):**
+
+- [x] **T0 (2026-07-13):** Восстановлен reverse tunnel VDS↔mac-home
+      (autossh config был на старый VDS IP `194.4.49.217`, заменён на
+      `cashflow-game.ru` DNS-имя в `~/.ssh/config` `Host ufohosting`).
+      На VDS добавлен `mac-home-tunnel` alias через localhost:2222.
+- [ ] **T0.1:** Apply mac-home clamshell fix `sudo pmset -a sleep 0
+      disksleep 0 tcpkeepalive 1` (per [[reference_mac_home_clamshell]])
+      — сейчас sleep=5, mac-home засыпает при закрытой крышке
+- [ ] **T0.2:** Install на mac-home базовый tooling:
+      `brew install python@3.11 ffmpeg portaudio` +
+      `pip install mlx-whisper anthropic pvporcupine sounddevice numpy`
+- [ ] **T0.3:** Mount voice-repo через sshfs на mac-home
+      (либо клон отдельный)
+- [ ] T1: mlx-whisper на mac-home
+- [ ] T2: Test Claude Fable 5 API (model ID, streaming, latency)
+- [ ] T3: voice-backend `/v1/voice/notify` endpoint
+- [ ] T4: `voice-notify <text>` bash wrapper через install-project.sh
+- [ ] T5: Rewrite agent.py (whisper → Fable → TTS chunker → player)
+- [ ] T6-T9: TDD components (Config, EventLogger, TTSChunker, Poller)
+- [ ] T10: Wake word + Escape cancel
+- [ ] T11: First E2E dogfood
+- [ ] T12: Session notification E2E
+
+**Sergey нужно перед стартом:**
+- Anthropic API key (для Claude Fable 5)
+- Porcupine access key + train «Алёнка» keyword
+- Подтвердить TTS remote vs local
+
+**НЕ нужно:** OpenAI API key (Path A отменён).
+
+**P0. macOS UX prototype (FIRST — до траты денег)**
+
+Scaffold готов: `clients/macos-ptt/*` (~350 lines, без TDD). Spec:
+[`docs/macos-ptt-mvp-spec.md`](../docs/macos-ptt-mvp-spec.md). Week-log
+template: [`docs/macos-ptt-week-log.md`](../docs/macos-ptt-week-log.md).
+
+Решения 2026-07-08: backend flow = STT+intent, hotkey = Right Option (61),
+transcript в JSONL полностью, cancel-gesture обязателен (US-8).
+
+- [ ] TDD refactor scaffold: Config → EventLogger → BackendClient → IntentClient
+      → AudioRecorder (protocol+Fake) → HotkeyMonitor (protocol+Fake) →
+      AppDelegate integration
+- [ ] US-8 cancel-gesture (Escape во время hold)
+- [ ] IntentClient (второй HTTP hop: text → /v1/voice/intent → Happy reply)
+- [ ] README: install + jq analysis examples + week-log workflow
+- [ ] Build на mac-home + первый живой PTT с JSONL evidence
+- [ ] 1 неделя dogfooding + заполнение week-log.md → decide continue Phase 7
+
+**P1. NanoESP32-C6 v1.0 stand-test (пока CoreS3 едет)**
+
+Плата: MuseLab NanoESP32-C6 v1.0 (wuxx repo), ESP32-C6-WROOM-1-N8,
+8МБ flash, 512КБ SRAM, **без PSRAM**, 2× USB-C (UART + native USB/JTAG),
+RGB LED на GPIO8. Годится для всего кроме full-audio pipeline.
+
+- [ ] P1a: WiFi connect + HTTPS POST test payload на voice-backend (через
+      native USB-C для быстрого flash + JTAG debug)
+- [ ] P1b: Deep sleep + GPIO wake benchmark (wake latency, sleep current)
+- [ ] P1c: RGB LED status indication (idle/recording/uploading/error)
+- [ ] P1d: TLS reconnect stability на iPhone hotspot / home WiFi
+- [ ] P1e: OneButton + chord matcher state machine (без audio)
+
+**P2. Закупка + testbench audio flow**
+- [ ] Order: CoreS3 SE + Module Audio ES8388 + Kenwood K1 female socket
+- [ ] Testbench с Bose QC25 (обычный TRRS штекер, CTIA стандарт)
+- [ ] I2S capture 16kHz mono → WAV на SD → play через тот же jack
+- [ ] Opus encode + HTTPS chunked POST → voice-backend
+- [ ] PTT-эмуляция двумя проводками (short GPIO to GND через pull-up)
+
+**P3. Гарнитура + сборка**
+- [!] Vostok HBT-3 (первый экземпляр) — **бракованный, возврат 2026-07-13**.
+      Замер мультиметра: speaker Tip↔Sleeve = 0 Ω (spec 10 Ω, короткое в BC-transducer).
+      Mic 6.6 kΩ (off-spec vs 2.2 kΩ но работает). Возврат через krikam.net (гарантия 6 мес).
+- [ ] Отправить обратно + получить замену (1-2 нед)
+- [ ] Замерить новый экземпляр перед распаковкой polyfoam
+- [ ] Baofeng BC-K1 (~1.5к) для параллельной sanity check концепта пока Vostok в возврате
+- [ ] DIY распайка PTT-line на GPIO, sanity chord matcher (OneButton) — после рабочей гарнитуры
+
+**P4. Firmware: light-sleep + pre-roll + chords**
+- [ ] Light sleep 1-2 мА + I2S DMA ring buffer в PSRAM always-on
+- [ ] Wake от PTT GPIO → beep 50мс → продолжение чтения буфера (pre-roll 200мс)
+- [ ] Wake latency цель ≤500мс от нажатия до записи
+- [ ] Chord bindings в JSON: hold/click/double/triple/CHC/CCH
+
+**P5. 3D-корпус + wearable**
+- [ ] CAD (Fusion/OnShape): PETG, клипса на ремень 40мм, прорезь под 2"
+      экран, USB-C hole сбоку, hole под 2 K1 jack'а (3.5mm + 2.5mm,
+      расстояние центров 11-12мм)
+- [ ] **Зарезервировать место под extra battery** — либо посадка 54×54×20мм
+      под Battery Bottom (M-Bus стек), либо отсек 20×70×10мм под LiPo pouch/18650.
+      Финальный выбор после dogfooding 500 мАч
+- [ ] Печать (Bambu/Prusa) или заказ на 3D-hub
+- [ ] Assembly + polish
+
+**Future (v0.2+, in [`docs/mcu-client.md`](../docs/mcu-client.md))**
+- LoRa Bottom, ESP-MESH, USB QWERTY OTG, custom slim PCB
+
+**Refs:** [`docs/mcu-client.md`](../docs/mcu-client.md) — полная архитектура
+
 ### Deferred
 
 - [ ] **G0**: Gemini LLM intent classifier — v0.3 candidate.
@@ -84,7 +201,8 @@ Spec написан (`docs/voice-patterns.md`). Осталось:
 - [ ] Repo rename `voice` → бренд (перед public-share).
 - [ ] License decision: AGPL-3.0 dual vs BSL vs proprietary.
 - [ ] Hardware-key refactor: SwiftUI `.onKeyPress` (iOS 17.4+).
-- [ ] Background PTT: custom BLE GATT (ESP32-C3 / nRF52).
+- ✅ **Background PTT** (superseded by Phase 7): MCU-client с проводной
+      Kenwood-гарнитурой закрывает BLE-PTT tangent. См. Phase 7.
 
 ---
 
