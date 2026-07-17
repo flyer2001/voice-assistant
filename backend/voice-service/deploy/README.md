@@ -108,6 +108,9 @@ inject в Claude сессию → Stop hook → TTS wrapper → mp3 в `/srv/voi
   через `/tmp/voice-mac-hook-last-{cid}.txt`.
 - `caddy-snippet.conf` — reverse_proxy `/v1/voice/*` + file_server
   `/voice-out/*` для public exposure.
+- `t3-mac-fire-and-poll.py` — mac-home скрипт: 5s mic record → mlx-whisper
+  STT → HTTPS POST → poll `/voice-out/` → afplay. Self-relaunch через
+  `launchctl asuser` если запущен из Background domain (mic silence fix).
 
 ### Install
 
@@ -120,6 +123,25 @@ sudo ./install.sh
 #   - .claude/settings.json в target проекте: Stop hook на voice-mac-auto-reply.sh
 ```
 
-Mac client (`t3-mac-fire-and-poll.py`) — отдельный артефакт (пока в
-`/tmp/`, permanent путь не выбран). Config в
-`~/.voice-agent-mac/config.json` с `voice_backend` URL + bearer token.
+### Mac-home setup (t3 script)
+
+```bash
+# scp из git → mac-home
+scp backend/voice-service/deploy/mac-client/t3-mac-fire-and-poll.py \
+    mac-home:/tmp/t3-mac-fire-and-poll.py
+
+# ~/.voice-agent-mac/config.json:
+{
+  "voice_backend": {
+    "url": "https://cashflow-game.ru",
+    "token": "<VOICE_BACKEND_TOKEN>"
+  },
+  "whisper": {
+    "initial_prompt": "Обсуждаем voice-agent, whisper, tmux, macOS, ..."
+  }
+}
+```
+
+`whisper.initial_prompt` — optional, override hardcoded default в script'е.
+Хорошо для domain jargon чтобы Whisper не russify'ил английские термы.
+Запуск (после venv setup + brew deps): `python3 /tmp/t3-mac-fire-and-poll.py`.
