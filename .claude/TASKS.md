@@ -2,7 +2,24 @@
 
 > Active sprint. Only open items: `[ ]` open, `[~]` in-progress, `[!]` blocked.
 > Закрытые задачи — в `.claude/CHANGELOG.md` (prepend через `/endsession`).
-> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl, **MVP_thin² VK voice in / text out E2E green 2026-06-23**, **OP1 Whisper systemd unit на ubuntu-home 2026-06-23**, **async callback + TTS + dual channel 2026-07-05** — детали в CHANGELOG.
+> Сделано: v0.0 foundation, W1–W5 STT bench, backend B1–B9 (incl. EnvComposition split), S1 Speech echo, S2 Forward to Happy + bubble UI, B-Happy-bind verified end-to-end via curl, **MVP_thin² VK voice in / text out E2E green 2026-06-23**, **OP1 Whisper systemd unit на ubuntu-home 2026-06-23**, **async callback + TTS + dual channel 2026-07-05**, **voice-agent-mac MVP full loop E2E green 2026-07-17** (mic → whisper local → VDS → my reply → Yandex TTS → mac speaker) — детали в CHANGELOG.
+
+---
+
+## voice-agent-mac — MVP iteration (2026-07-17 E2E green)
+
+Full loop работает. Итерации качества и надёжности:
+
+- [ ] **Snapshot backend infra в git repo** — Caddyfile handles + /etc/voice-backend.env target + wrappers `voice-mac-reply` / `voice-mac-reply-both` / `voice-mac-auto-reply.sh` живут на VDS в system paths, не versioned. Скопировать в `backend/voice-service/deploy/mac-client/` + install script
+- [ ] **Whisper accuracy real-life test** — оценить `whisper-large-v3-mlx` + `--initial-prompt` на реальных RU+EN mixed фразах (5 clips × разное качество). Пока есть только smoke test с 1 clip
+- [ ] **Stop hook edge cases** — тест когда inject приходит во время активной беседы (моя турна не завершилась). Reply linked через parentUuid должен только на voice-mac descendant, не на другие user msg
+- [ ] **initial-prompt configurable** — сейчас hardcoded в t3 script. Загружать из `~/.voice-agent-mac/config.json` (tech_terms list)
+- [ ] **HYP-028 full whisper benchmark** — отложен, MVP не блокирует. Corpus 4 пары × 5s/15s готов в `docs/whisper-benchmark-plan.md`. Прогнать когда accuracy станет проблемой
+- [ ] **Wake word активация** (US-1) — сейчас script запускается вручную `python /tmp/t3-mac-fire-and-poll.py`. Wake word Porcupine «Алёнка» → auto-record. Требует Porcupine access key
+- [ ] **Streaming TTS chunks** (US-4) — сейчас reply idет одним куском в TTS. Разбить на предложения, чтобы Sergey слышал первое слово через 1-2с, не ждать всей фразы
+- [ ] **Deploy как daemon** — сейчас script одноразовый (record 5s → transcribe → POST → poll → exit). Сделать loop + launchd plist для always-on
+
+---
 
 ---
 

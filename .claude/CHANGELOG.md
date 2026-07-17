@@ -1,3 +1,51 @@
+## [2026-07-17] voice-agent-mac MVP loop end-to-end (mic → whisper → me → TTS → mac speaker)
+
+**Сделано:**
+- ✅ **T1 whisper local**: mlx-whisper 0.4.3 + mlx 0.32.0 + sounddevice + numpy на mac-home. Первый smoke test — silence из-за built-in mic dead (peak=0). Fix — external headset через 3.5mm jack (peak=17819, transcript ok)
+- ✅ **T2 mac→VDS input pipeline**: `/tmp/t3-mac-fire-and-poll.py` — record 5s → whisper local → POST HTTPS через Caddy `cashflow-game.ru/v1/voice/*` → voice-backend 10.10.0.1:8089 → Happy inject
+- ✅ **Caddy proxy** — добавлен handle `/v1/voice/*` → 10.10.0.1:8089 + handle `/voice-out/*` → `/srv/voice-out` static file_server browsing. `/etc/caddy/Caddyfile` updated + reload
+- ✅ **VOICE_TARGET_CWD** переключён `/root/projects/assistant` → `/root/projects/voice` в `/etc/voice-backend.env` — раньше `/v1/voice/intent` bypass'ил focus.json и всегда шёл в dispatcher (bug), теперь инжект попадает в voice session
+- ✅ **T3 fire-and-forget + polling reply channel**: mac client ignores POST 503/timeout, polls `GET /voice-out/` каждые 2с; parses list JSON, filters по client_id + watermark ts. VDS wrapper `voice-mac-reply` пишет JSON reply. E2E работает
+- ✅ **T4 TTS Yandex через ffmpeg pipeline**: новый wrapper `/usr/local/bin/voice-mac-reply-both` — Yandex TTS `alena` oggopus → ffmpeg → mp3 (afplay urезает Opus, MP3 играет полностью). Пишет `{stem}.mp3` + `{stem}.json` в /srv/voice-out/
+- ✅ **T5 Stop hook auto-reply**: `/usr/local/bin/voice-mac-auto-reply.sh` — Python script scan'ит transcript.jsonl, находит last user msg с `[voice-mac client_id=...]` префиксом, walk'ит parentUuid chain до linked assistant reply, вызывает `voice-mac-reply-both` в background. Дедуп через `/tmp/voice-mac-hook-last-{cid}.txt`. Registered в `/root/projects/voice/.claude/settings.json` PreToolUse->Stop
+- ✅ **T6 Aqua workaround без tmux respawn**: `t3-mac-fire-and-poll.py` self-detect'ит `launchctl managername`, если Background — re-exec via `launchctl asuser $(id -u) python __file__ ...`. `_GUARD` env блокирует fork-bomb. Mic работает в Aqua-Domain
+- ✅ **T7 E2E real voice**: mic peak=12928, reply audio downloaded 19341B + afplay 2484ms exit 0. Full loop проверен (whisper transcript garbled tiny model — исправлено в step ниже)
+- ✅ **Whisper upgrade**: tiny → `mlx-community/whisper-large-v3-mlx` (3GB download 4:45 через Happ VPN, warm STT 3.35s на 5с clip). `--initial-prompt` с tech terms для лучшего распознавания смешанных RU+EN
+- ✅ **Memory saved**: `feedback_claude_login_via_tmux_send_keys` (OAuth code via send-keys обход VNC clipboard drop + Happ VPN callback intercept), `feedback_ssh_tmux_keychain_gui_context` (tmux new через ssh теряет Keychain unlock), `reference_mac_home_builtin_mic_dead` (internal mic не работает, всегда external), обновлён `reference_claude_ufo_alias` (cashflow-game.ru DNS вместо wg-IP + Happ VPN dependency)
+- ✅ **Subagent на mac-home** — spawn через tmux + `claude-ufo` alias, `CLAUDE.md` для contract с sentinel protocol и boundaries. XcodeBuildMCP в settings.json (24 tools, только Simulator workflow — для macOS menubar не покрывает)
+
+**Решения:**
+- **Transport**: не SSE/WebSocket, а fire-and-forget POST + static file polling через Caddy — reuse существующей инфры, нет нового backend endpoint. Mac tolerant к 503 (backend timeout ≠ inject fail)
+- **TTS format**: Yandex oggopus → ffmpeg → mp3. afplay нативно играет MP3 без урезания. Opus urезается CoreAudio на macOS 26.5
+- **Hook selection**: parentUuid chain walk, не last-assistant-of-transcript — иначе Stop hook берёт reply на другой user msg вместо voice-mac. Stop walking на next user turn
+- **Aqua re-exec**: `launchctl asuser $UID` вместо tmux respawn — работает независимо от того как tmux server был spawn'нут. No sudo, uid==uid
+- **Whisper model**: `whisper-large-v3-mlx` (не turbo) — best accuracy для mixed RU+EN, ~3GB, warm 3.35s на 5с. Size/CPU не blocker
+- **Skipped**: `whisper-large-v3-turbo` (быстрее но edge cases хуже), `whisper-medium` (меньше но хуже RU), NVIDIA Canary (не MLX Metal, тяжело порт)
+
+**Открытое:**
+- Backend изменения (Caddyfile, /etc/voice-backend.env, /usr/local/bin/voice-mac-reply-both, voice-mac-auto-reply.sh) — на VDS в system paths, НЕ в git repo. Snapshot в session transcript. Хорошо бы скопировать в `backend/voice-service/deploy/` для versioning
+- Стоп hook — работает, но эффективно проверяет только когда я idle. Если inject пришёл во время активной беседы с Sergey, reply на voice-mac может уйти вместе с ответом на Sergey (два разных assistant text в одной turn?) — нужен focus test
+- `--initial-prompt` с tech terms — hardcoded в t3 script. Позже сделать configurable / загружать из ~/.voice-agent-mac/config.json
+- Пред-benchmark whisper — full HYP-028 benchmark не проведён (Whisper Small/Medium vs Gemma vs Apple SpeechTranscriber). MVP работает на large-v3 — benchmark отложен
+
+**Файлы (на VDS в git repo /root/projects/voice/):**
+- `.claude/settings.json` (Stop hook config добавлен)
+
+**Файлы (на VDS вне git repo — backend infra):**
+- `/etc/caddy/Caddyfile` (+ /v1/voice/* + /voice-out/*)
+- `/etc/voice-backend.env` (VOICE_TARGET_CWD переключен)
+- `/usr/local/bin/voice-mac-reply` (new, text-only reply)
+- `/usr/local/bin/voice-mac-reply-both` (new, Yandex TTS + MP3)
+- `/usr/local/bin/voice-mac-auto-reply.sh` (new, Stop hook)
+
+**Файлы (на mac-home):**
+- `~/projects/voice-assistant/clients/voice-agent-mac/CLAUDE.md` (rsync'нут в 2026-07-16, subagent contract)
+- `~/.claude/settings.json` (mcpServers.xcodebuildmcp + permissions.allow 75 rules)
+- `~/.zshrc` (claude-ufo alias — endpoint переключен на cashflow-game.ru)
+- `/tmp/t3-mac-fire-and-poll.py` (whisper→POST→poll→afplay client, ~250 lines Python)
+- `~/.voice-agent-mac/config.json` (voice_backend url + token)
+- HF cache `~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-mlx/` (3GB)
+
 ## [2026-07-13] Phase 7 MCU-client + voice-agent-mac MVP scaffolded
 
 **Сделано:**
