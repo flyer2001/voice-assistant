@@ -1,0 +1,39 @@
+#!/bin/bash
+# voice-mac-reply-both <client_id> <text> [voice]
+# Yandex TTS synth → writes JSON + mp3 to /srv/voice-out/ for mac polling.
+set -euo pipefail
+[ $# -lt 2 ] && { echo "Usage: voice-mac-reply-both <client_id> <text> [voice]" >&2; exit 1; }
+CID="$1"; TEXT="$2"; VOICE="${3:-alena}"
+
+YA_KEY=$(grep -E '^API-?KEY=' /etc/yandex_speechkit.env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+[ -z "$YA_KEY" ] && { echo "Yandex API-KEY missing" >&2; exit 1; }
+
+TS=$(date -u +%Y%m%dT%H%M%S%3NZ)
+STEM="${CID}-${TS}"
+# ponytail: MP3 not oggopus — afplay truncates Opus on macOS, MP3 plays clean.
+MP3="/srv/voice-out/${STEM}.mp3"
+JSON="/srv/voice-out/${STEM}.json"
+
+# Yandex TTS "lpcm" or "oggopus" native — mp3 not direct. Get oggopus, transcode to mp3 via ffmpeg.
+OGG_TMP=$(mktemp --suffix=.ogg)
+trap 'rm -f "$OGG_TMP"' EXIT
+
+curl -sS --fail -X POST https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize \
+  -H "Authorization: Api-Key $YA_KEY" \
+  --data-urlencode "text=$TEXT" \
+  --data-urlencode "voice=$VOICE" \
+  --data-urlencode "lang=ru-RU" \
+  --data-urlencode "format=oggopus" \
+  -o "$OGG_TMP"
+
+OGG_SIZE=$(stat -c %s "$OGG_TMP")
+[ "$OGG_SIZE" -lt 100 ] && { echo "TTS returned suspiciously small file ($OGG_SIZE B)" >&2; cat "$OGG_TMP" >&2; exit 1; }
+
+ffmpeg -y -loglevel error -i "$OGG_TMP" -c:a libmp3lame -b:a 96k "$MP3"
+
+SIZE=$(stat -c %s "$MP3")
+jq -n --arg cid "$CID" --arg text "$TEXT" --arg ts "$TS" --arg audio "/voice-out/${STEM}.mp3" --arg voice "$VOICE" --argjson size "$SIZE" \
+  '{client_id:$cid, text:$text, ts:$ts, audio_url:$audio, voice:$voice, audio_size:$size}' > "$JSON"
+
+chmod 644 "$MP3" "$JSON"
+echo "wrote $JSON ($SIZE B mp3)"

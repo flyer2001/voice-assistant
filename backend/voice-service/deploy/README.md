@@ -92,3 +92,34 @@ Default bind: `127.0.0.1:8089` (localhost only). For client (iPhone) access:
   with HTTPS termination + token in `Authorization` (or rate-limit by IP).
 
 Do not expose port 8089 публично без HTTPS proxy — Bearer token идёт plain.
+
+## voice-agent-mac loop (mac-client/)
+
+Проектная обвязка для end-to-end voice-loop с mac-home (не самим VDS
+backend'ом). Флоу: mic → whisper STT → HTTPS POST `/v1/voice/intent` →
+inject в Claude сессию → Stop hook → TTS wrapper → mp3 в `/srv/voice-out/`
+→ mac polls → afplay. Собирается из четырёх файлов в `mac-client/`:
+
+- `voice-mac-reply` — text-only JSON reply (без TTS)
+- `voice-mac-reply-both` — Yandex TTS oggopus → ffmpeg mp3 + JSON
+- `voice-mac-auto-reply.sh` — Claude Code Stop hook; парсит transcript,
+  находит last `[voice-mac ...]` user msg, извлекает linked assistant
+  reply через parentUuid walk, вызывает `voice-mac-reply-both`. Dedup
+  через `/tmp/voice-mac-hook-last-{cid}.txt`.
+- `caddy-snippet.conf` — reverse_proxy `/v1/voice/*` + file_server
+  `/voice-out/*` для public exposure.
+
+### Install
+
+```bash
+cd /root/projects/voice/backend/voice-service/deploy/mac-client
+sudo ./install.sh
+# затем 3 ручных шага из вывода:
+#   - /etc/yandex_speechkit.env с API-KEY
+#   - merge caddy-snippet.conf в /etc/caddy/Caddyfile + reload
+#   - .claude/settings.json в target проекте: Stop hook на voice-mac-auto-reply.sh
+```
+
+Mac client (`t3-mac-fire-and-poll.py`) — отдельный артефакт (пока в
+`/tmp/`, permanent путь не выбран). Config в
+`~/.voice-agent-mac/config.json` с `voice_backend` URL + bearer token.

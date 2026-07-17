@@ -1,0 +1,13 @@
+#!/bin/bash
+# voice-mac-reply <client_id> <text>
+# Writes reply JSON to /srv/voice-out/ for mac client polling.
+set -euo pipefail
+[ $# -lt 2 ] && { echo "Usage: voice-mac-reply <client_id> <text>" >&2; exit 1; }
+CID="$1"; shift
+TEXT="$*"
+TS=$(date -u +%Y%m%dT%H%M%S%3NZ)
+OUT="/srv/voice-out/${CID}-${TS}.json"
+jq -n --arg cid "$CID" --arg text "$TEXT" --arg ts "$TS" \
+  '{client_id:$cid, text:$text, ts:$ts}' > "$OUT"
+chmod 644 "$OUT"
+echo "wrote $OUT"
