@@ -1,3 +1,34 @@
+## [2026-07-18] voice-agent-mac — snapshot backend в git + node checks green
+
+**Сделано:**
+- ✅ **Backend infra snapshot в git** (commit 410c07a): `backend/voice-service/deploy/mac-client/` — `voice-mac-reply`, `voice-mac-reply-both`, `voice-mac-auto-reply.sh`, `caddy-snippet.conf`, `install.sh`. Идентично `/usr/local/bin/` originals (одно исправление — stale ogg→mp3 comment). Install script прописывает 3 manual follow-ups (yandex env, Caddyfile merge, .claude/settings.json Stop hook)
+- ✅ **t3 mac-client в git** (commit 554c6e4): `backend/voice-service/deploy/mac-client/t3-mac-fire-and-poll.py` — canonical copy `/tmp/` версии с mac-home. Добавлено чтение `whisper.initial_prompt` из `~/.voice-agent-mac/config.json` (fallback на hardcoded default)
+- ✅ **Node checks pre-commit**:
+  - A. `swift build -c release` в voice-service → ok
+  - B. `POST /v1/voice/intent` с Bearer + `[node-check ping]` payload → HTTP 503 `waitTimeout` в 15s. Audit log показал `error: waitTimeout` (не `injectFailed`) → inject fired, backend просто ждал sync reply
+  - C. `voice-mac-reply-both smoke-node-c "Проверка синтеза речи"` → 32KB mp3 в /srv/voice-out/, ffmpeg pipeline работает
+- ✅ **deploy/README.md** — новая секция `voice-agent-mac loop (mac-client/)` с описанием файлов, install, mac-home setup (scp + config.json schema с whisper block)
+
+**Решения:**
+- `t3-mac-fire-and-poll.py` на mac-home остаётся в `/tmp/` — git = canonical, `scp` при потребности. Permanent path выбирать не стал, YAGNI
+- Streaming TTS chunks — deferred. Требует переделать poll-loop в t3: сейчас `max(fresh)` в `t3-mac-fire-and-poll.py:238` берёт latest ts из fresh-listing → при разбивке ответа на N chunks пропустит первые N-1. YAGNI для спайка
+- Ноды-чек D (Stop hook) пропущен — утренний loop 2026-07-17 уже проработал end-to-end, redundant test
+
+**Открытое:**
+- Sergey завтра сядет за комп → запустит t3 на mac-home → проверит full E2E живой аппкой. Он не за компом сейчас, тестировать голосом сам не могу
+- Если streaming TTS реально понадобится (первое слово через 1-2с вместо ожидания всей фразы) — переделать `while: max(fresh)` в `while: sorted(fresh)` цикл в t3 poll блоке + разбить `combined` на предложения в `voice-mac-auto-reply.sh`
+- t3 permanent path на mac-home — если mac ребутнётся часто, поставить в `~/bin/t3-mac-fire-and-poll.py` через install-mac.sh
+
+**Файлы:**
+- backend/voice-service/deploy/mac-client/voice-mac-reply
+- backend/voice-service/deploy/mac-client/voice-mac-reply-both
+- backend/voice-service/deploy/mac-client/voice-mac-auto-reply.sh
+- backend/voice-service/deploy/mac-client/caddy-snippet.conf
+- backend/voice-service/deploy/mac-client/install.sh
+- backend/voice-service/deploy/mac-client/t3-mac-fire-and-poll.py
+- backend/voice-service/deploy/README.md
+- .claude/TASKS.md
+
 ## [2026-07-17] voice-agent-mac MVP loop end-to-end (mic → whisper → me → TTS → mac speaker)
 
 **Сделано:**

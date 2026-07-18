@@ -6,18 +6,18 @@
 
 ---
 
-## voice-agent-mac — MVP iteration (2026-07-17 E2E green)
+## voice-agent-mac — MVP iteration (2026-07-17 E2E green, 2026-07-18 backend в git)
 
-Full loop работает. Итерации качества и надёжности:
+Full loop работает. 2026-07-18: обвязка в git, ноды-чеки green, `whisper.initial_prompt` config-driven. Итерации:
 
-- [ ] **Snapshot backend infra в git repo** — Caddyfile handles + /etc/voice-backend.env target + wrappers `voice-mac-reply` / `voice-mac-reply-both` / `voice-mac-auto-reply.sh` живут на VDS в system paths, не versioned. Скопировать в `backend/voice-service/deploy/mac-client/` + install script
-- [ ] **Whisper accuracy real-life test** — оценить `whisper-large-v3-mlx` + `--initial-prompt` на реальных RU+EN mixed фразах (5 clips × разное качество). Пока есть только smoke test с 1 clip
+- [ ] **E2E dogfood завтра** — Sergey за компом → t3 на mac-home → живая проверка full loop. Первая новая сессия в /root/projects/voice подхватит inject через VOICE_TARGET_CWD
+- [ ] **Whisper accuracy real-life test** — оценить `whisper-large-v3-mlx` + `--initial-prompt` на реальных RU+EN mixed фразах (5 clips × разное качество). Пока есть только smoke test с 1 clip. Skip сегодня — крупная модель уже поставлена, real-life feedback после dogfood
 - [ ] **Stop hook edge cases** — тест когда inject приходит во время активной беседы (моя турна не завершилась). Reply linked через parentUuid должен только на voice-mac descendant, не на другие user msg
-- [ ] **initial-prompt configurable** — сейчас hardcoded в t3 script. Загружать из `~/.voice-agent-mac/config.json` (tech_terms list)
 - [ ] **HYP-028 full whisper benchmark** — отложен, MVP не блокирует. Corpus 4 пары × 5s/15s готов в `docs/whisper-benchmark-plan.md`. Прогнать когда accuracy станет проблемой
 - [ ] **Wake word активация** (US-1) — сейчас script запускается вручную `python /tmp/t3-mac-fire-and-poll.py`. Wake word Porcupine «Алёнка» → auto-record. Требует Porcupine access key
-- [ ] **Streaming TTS chunks** (US-4) — сейчас reply idет одним куском в TTS. Разбить на предложения, чтобы Sergey слышал первое слово через 1-2с, не ждать всей фразы
+- [ ] **Streaming TTS chunks** (US-4) — сейчас reply идёт одним куском в TTS. Разбить на предложения (первое слово через 1-2с). Требует переделать poll-loop в t3: `max(fresh)` → `sorted(fresh)` цикл + split reply на предложения в `voice-mac-auto-reply.sh`. Deferred за спайком, реалистично после dogfood feedback
 - [ ] **Deploy как daemon** — сейчас script одноразовый (record 5s → transcribe → POST → poll → exit). Сделать loop + launchd plist для always-on
+- [ ] **t3 permanent path на mac-home** — сейчас `/tmp/`, теряется на reboot. Если пришлось часто scp'ить — сделать `install-mac.sh` → `~/bin/t3-mac-fire-and-poll.py`
 
 ---
 
