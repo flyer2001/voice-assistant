@@ -170,7 +170,13 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
 
         XCTAssertEqual(rec.vkSends.count, 2, "echo прошёл + error notice")
         XCTAssertTrue(rec.vkSends[0].1.contains("👂"))
-        XCTAssertTrue(rec.vkSends[1].1.contains("session offline"))
+        // Уведомление должно называть проект и следующий шаг — «session offline»
+        // само по себе Sergey'ю ничего не говорило (2026-08-01).
+        let notice = rec.vkSends[1].1
+        XCTAssertTrue(notice.contains("Нет живой сессии"), notice)
+        XCTAssertTrue(notice.contains(Self.cwd), "должен назвать cwd: \(notice)")
+        XCTAssertTrue(notice.contains("сохранены"), "сказать что не потеряно: \(notice)")
+        XCTAssertTrue(notice.contains("/to_assistant"), "подсказать выход: \(notice)")
     }
 
     // MARK: - S-5 Happy reply timeout
@@ -188,7 +194,9 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
 
         await pipe.handle(update, message: msg)
 
-        XCTAssertTrue(rec.vkSends.last!.1.contains("timeout"))
+        let notice = rec.vkSends.last!.1
+        XCTAssertTrue(notice.contains("не ответила за 30с"), notice)
+        XCTAssertTrue(notice.contains("сохранены"), notice)
     }
 
     // MARK: - S-6 not-allowlisted user

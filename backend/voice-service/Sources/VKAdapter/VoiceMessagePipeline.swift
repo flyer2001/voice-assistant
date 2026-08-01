@@ -173,7 +173,7 @@ public struct VoiceMessagePipeline: Sendable {
             reply = try await happyInject(prefixed, routeCwd)
         } catch {
             // S-4 (no running session) / S-5 (reply timeout) / др. инжект-ошибки.
-            try? await vkSend(peerId, "⚠️ диспетчер не ответил: \(label(error))")
+            try? await vkSend(peerId, failureNotice(error, routeCwd: routeCwd))
             audit(decision: "error_inject", outcome: "error",
                   msgId: msgId, peerId: peerId,
                   audioPath: audioPath?.path, durationS: audio.duration,
@@ -201,6 +201,31 @@ public struct VoiceMessagePipeline: Sendable {
 
     private func ms(since start: Date) -> Int {
         Int((clock().timeIntervalSince(start) * 1000).rounded())
+    }
+
+    /// Что показать в VK, когда inject не дошёл.
+    ///
+    /// Раньше слали просто «диспетчер не ответил: session offline» — по нему
+    /// непонятно ни где мертво, ни что делать. 2026-08-01 Sergey именно с
+    /// этого вопроса и начал. Теперь называем cwd и следующий шаг; аудио и
+    /// транскрипт при этом сохранены, о чём тоже стоит сказать.
+    func failureNotice(_ error: any Error, routeCwd: String) -> String {
+        let project = (routeCwd as NSString).lastPathComponent
+        switch label(error) {
+        case "session offline":
+            return """
+            ⚠️ Нет живой сессии в \(project) — сообщение не доставлено.
+            Транскрипт и аудио сохранены.
+            Открой сессию в \(routeCwd) либо переключи фокус: /to_assistant
+            """
+        case "timeout (>30s)":
+            return """
+            ⚠️ Сессия в \(project) не ответила за 30с — возможно занята.
+            Транскрипт и аудио сохранены, повтори позже.
+            """
+        default:
+            return "⚠️ Не смог доставить в \(project): \(label(error)). Аудио сохранено."
+        }
     }
 
     private func label(_ error: any Error) -> String {
