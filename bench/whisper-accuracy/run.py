@@ -96,10 +96,24 @@ def cmd_transcribe(args):
           f"{sum(c['duration_s'] or 0 for c in corpus)}s audio")
 
     out_path = os.path.join(HERE, f"results-{date.today()}.jsonl")
+
+    # Прогоны того же дня ДОПОЛНЯЮТ файл, а не затирают его. Первая версия
+    # открывала его на "w" и стирала предыдущие прогоны — второй запуск за
+    # день уничтожал результаты, которые уже не воспроизвести (модель на
+    # сервере успевала измениться). Восстанавливать пришлось из git.
+    previous = {}
+    if os.path.exists(out_path):
+        for line in open(out_path):
+            if line.strip():
+                r = json.loads(line)
+                previous[r["msg_id"]] = r.get("runs", {})
+        print(f"дополняю существующий {os.path.basename(out_path)} "
+              f"({len(previous)} записей)")
+
     with open(out_path, "w") as out:
         for i, clip in enumerate(corpus, 1):
             row = dict(clip)
-            row["runs"] = {}
+            row["runs"] = dict(previous.get(clip["msg_id"], {}))
             for name, url in endpoints.items():
                 res = transcribe_one(url, clip["path"], args.lang)
                 row["runs"][name] = res
