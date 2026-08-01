@@ -83,3 +83,7 @@ Sources/VoiceAssistant/Resources/whisperkit/openai_whisper-*/
 
 # agentops install backups
 .claude/backups/
+
+# python (глобально — было только bench/scripts/)
+__pycache__/
+*.pyc

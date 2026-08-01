@@ -7,7 +7,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 DEST=/usr/local/bin
 
-for f in voice-mac-reply voice-mac-reply-both voice-mac-auto-reply.sh; do
+for f in voice-mac-reply voice-mac-reply-both voice-mac-auto-reply.sh voice_mac_auto_reply.py; do
   install -m 755 "$HERE/$f" "$DEST/$f"
   echo "installed $DEST/$f"
 done

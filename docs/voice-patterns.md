@@ -1,8 +1,42 @@
+---
+version: 1.0.0
+bumped: 2026-08-01
+bumped_reason: "sanity-check на реальных данных: preconditions, test-filter, битый путь transcripts"
+---
+
 # Voice pattern analysis — Phase 6 F5 spec
 
 On-demand analysis of войс-запросов от Sergey за N дней. Zero infra в
 prod — всё on-request через subagent. Output — markdown report в
 `bench/analytics/voice-patterns-YYYY-MM-DD.md`.
+
+## Preconditions — когда запуск имеет смысл
+
+**Проверено 2026-08-01 на живом `audit.jsonl`: запускать пока рано.**
+
+Состояние корпуса на тот момент — 26 записей за 6 недель (2026-06-22 →
+2026-08-01), из них 21 success. Топ-униграммы: «сообщение» ×10,
+«тестовое» ×7, «проверка» ×5, «напиши» ×5, «ответь» ×5. То есть корпус
+целиком состоит из тестовых прогонов, реальных рабочих запросов нет.
+На таком объёме «топ-30 униграмм» и порог `count ≥5` дают шум, а не
+intents.
+
+Перед запуском проверить:
+
+```bash
+python3 - <<'EOF'
+import json
+es=[json.loads(l) for l in open('/var/lib/voice-bot/audit.jsonl') if l.strip()]
+ok=[e for e in es if e.get('outcome')=='success']
+print(f"success={len(ok)}  (нужно >=100 нетестовых)")
+EOF
+```
+
+- **< 100 нетестовых success-записей → не запускать.** Отчёт будет про
+  то, как мы тестировали бота.
+- Analyzer **обязан** отбрасывать тестовые сообщения: транскрипт
+  содержит «тестовое», «проверка связи», «просто ответь», «раз два три»,
+  «проверяем функционал» — и сообщать в header, сколько отброшено.
 
 ## Trigger
 
@@ -44,7 +78,12 @@ Analyzer treats missing = "default".
 
 ### 2. Claude session transcripts (optional, для tool-call overhead)
 
-Live path: `~/.claude/projects/<encoded-cwd>/history/*.jsonl` (per-session).
+Live path: `~/.claude/projects/<encoded-cwd>/<session-uuid>.jsonl`.
+
+⚠️ 2026-08-01: в спеке был путь `<encoded-cwd>/history/*.jsonl` — каталога
+`history/` не существует ни в одном проекте, глоб возвращал пусто и секция
+молча пропускалась. Файлы лежат плоско, имя = session uuid.
+
 Correlation через `ts` ±30s + `target_cwd`. Optional join — если session
 transcripts недоступны, пропустить section "dispatcher tool-call overhead".
 
@@ -60,9 +99,11 @@ Analyzer НЕ трогает audio, только уже-transcript'ы из audit
 ### Header
 
 - Window: N days (from ts_start to ts_end)
-- Total handled: N msgs
+- Total handled: N msgs, из них отброшено как тестовые: M
 - Success rate: N% (outcome=success / total)
-- Median total_ms, p95 total_ms
+- Median total_ms. **p95 только при N ≥ 100** — иначе median + min/max,
+  p95 на двух десятках записей это просто второй по величине выброс
+  (на корпусе 2026-08-01: median 2019ms при max 27658ms)
 
 ### Top n-grams (unigrams + bigrams + trigrams)
 
@@ -108,13 +149,21 @@ Cross-tab `focus_source` × outcome:
 Cel: verify F1/F2 работает, поймать «часто fallback» → focus.json
 не обновляется правильно.
 
+**Missing ≠ default.** Записи до Phase 6 не имеют поля вовсе (15 из 26 на
+2026-08-01). Сваливать их в `default` — врать: получится «default 15,
+focus 7» там, где routing тогда просто не существовало. Отдельная строка
+`pre-phase6 (поле отсутствует)`, в проценты success не мешать.
+
 ### Bad transcriptions (heuristic)
 
 Кандидаты «плохой расшифровки» — грубая эвристика (analyzer НЕ переслушивает audio):
-- `transcript_whisper` ≠ `transcript_vk` **и** оба ≥5 chars **и** Jaro
-  similarity <0.6 (использовать простую свою реализацию, не тянуть deps
-  — Levenshtein норм тоже)
-- Только один transcript пуст при `duration_s >2s` (STT завалился)
+- ~~`transcript_whisper` ≠ `transcript_vk` и оба ≥5 chars и Jaro <0.6~~
+  **Выброшено 2026-08-01.** `transcript_vk` заполнен в 0 из 26 записей.
+  Проверено через `messages.getById` на 6 сообщениях (включая июньское):
+  в `audio_message` поля `transcript` нет вовсе, `transcript_state` = nil —
+  VK не отдаёт свою STT по group-токену. Не реализовывать Jaro/Levenshtein:
+  сравнивать не с чем. Подробности — комментарий в `TranscriptDecider.swift`
+- Пустой transcript при `duration_s >2s` (Whisper завалился)
 - Слова «непонятно / что-то / хз / не расслышал» (Sergey сам подтвердил)
 
 Топ-20 с `msg_id` + `audio_path` для manual re-listen.
@@ -193,4 +242,8 @@ Sergey запускает **on-demand**, не крон. Report timestamp'итс�
 
 - audit.jsonl schema — `backend/voice-service/Sources/VKAdapter/AudioStorage.swift`
 - Focus state — `backend/voice-service/Sources/VoiceServiceCore/FocusState.swift`
-- v0.3 intent shortcuts backlog — `.claude/TASKS.md` `## Backlog`
+- v0.3 intent shortcuts backlog — [`.claude/BACKLOG.md`](../.claude/BACKLOG.md)
+- STT-качество, откуда берутся плохие транскрипты —
+  [whisper-benchmark-plan.md](whisper-benchmark-plan.md)
+
+[← docs/INDEX.md](INDEX.md)
