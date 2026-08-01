@@ -46,15 +46,14 @@ Yandex TTS → mac speaker.
       с tool-вызовами внутри → TTS прочитал финальный текст
 - [ ] **Deploy как daemon** — script одноразовый (record 5s → … → exit).
       Loop + launchd plist для always-on. Done: plist загружен, переживает reboot
-- [ ] **t3 permanent path** — сейчас `/tmp/`, теряется на reboot. `install-mac.sh`
-      → `~/bin/t3-mac-fire-and-poll.py`. Делать если пришлось scp'ить 2+ раза
 - [!] **Wake word Porcupine «Алёнка»** (US-1) — blocked: нужен access key +
       train keyword (console.picovoice.ai, ~5 мин). Сейчас запуск вручную
 
 ## mac-home — окружение
 
-- [ ] `sudo pmset -a sleep 0 disksleep 0 tcpkeepalive 1` — сейчас sleep=5,
-      засыпает при закрытой крышке (см. `reference_mac_home_clamshell`)
+- [ ] `sudo pmset -a sleep 0 disksleep 0 tcpkeepalive 1` — на 2026-08-01
+      sleep=20, tcpkeepalive=0. Только Sergey: sudo на маке требует пароль,
+      беспарольного нет
 - [ ] Screen Sharing daemon kickstart после macOS update (S5900 не listen)
 - [ ] Mount voice-repo через sshfs (либо отдельный клон)
 - [ ] Удалить spike-артефакты `/tmp/spike-hb/`
