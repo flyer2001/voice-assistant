@@ -38,14 +38,12 @@ Yandex TTS → mac speaker.
       командах возврата к диспетчеру. Промпт их НЕ лечит (проверено
       2026-08-01), нужен другой подход: постобработка по словарю команд либо
       смена модели на VK-пути. Эти две фразы — рабочие команды, не тесты
-- [ ] **`initial_prompt` перенести в config.json** — сейчас зашит в
-      `t3-mac-fire-and-poll.py`, в конфиге его нет (проверено 2026-08-01),
-      хотя код умеет читать оттуда
 - [ ] **Stop hook — живая проверка после фикса** (2026-08-01 логика починена,
       7 тестов green, но E2E с реальным маком не гонялся). Done: голос → ответ
       с tool-вызовами внутри → TTS прочитал финальный текст
-- [ ] **Deploy как daemon** — script одноразовый (record 5s → … → exit).
-      Loop + launchd plist для always-on. Done: plist загружен, переживает reboot
+- [!] **Deploy как daemon** — blocked одной цепочкой с wake word. Без него
+      демон = бесконечный цикл «записал 5с → отправил», то есть поток мусора
+      в сессию. Делать только после Porcupine
 - [!] **Wake word Porcupine «Алёнка»** (US-1) — blocked: нужен access key +
       train keyword (console.picovoice.ai, ~5 мин). Сейчас запуск вручную
 
@@ -54,9 +52,9 @@ Yandex TTS → mac speaker.
 - [ ] `sudo pmset -a sleep 0 disksleep 0 tcpkeepalive 1` — на 2026-08-01
       sleep=20, tcpkeepalive=0. Только Sergey: sudo на маке требует пароль,
       беспарольного нет
-- [ ] Screen Sharing daemon kickstart после macOS update (S5900 не listen)
-- [ ] Mount voice-repo через sshfs (либо отдельный клон)
-- [ ] Удалить spike-артефакты `/tmp/spike-hb/`
+- [!] Mount voice-repo через sshfs — blocked: нужен macFUSE (системное
+      расширение → пароль + разрешение в System Settings + reboot). Только
+      Sergey. Альтернатива без блокера — отдельный `git clone` на маке
 
 ## Phase 6 F5 — pattern analyzer
 

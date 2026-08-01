@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# voice-focus <peer_id> <name_or_alias>
+# Writes /var/lib/voice-bot/focus.json → next voice routes to matched project.
+# Then TTS-acks Sergey «переключил на <name>» через voice-reply-tts.
+#
+# Install on VDS:
+#   sudo install -m 755 backend/voice-service/deploy/voice-focus /usr/local/bin/
+#
+# Alias table — Russian pronunciations map to /root/projects/<canonical>:
+#   дневник     → myRep
+#   кэшфлоу     → cashflow
+#   войс        → voice
+#   ассистент, диспетчер → clears focus (delegates to voice-focus-clear)
+#
+# Requires: voice-reply-tts installed, /var/lib/voice-bot writable by caller.
+set -euo pipefail
+PEER="${1:?peer_id required}"
+NAME_RAW="${2:?project name required}"
+NAME="$(echo "$NAME_RAW" | tr '[:upper:]' '[:lower:]' | tr -d '.,!?:;')"
+
+case "$NAME" in
+  дневник|diary)                                    NAME=myRep ;;
+  кэшфлоу|кешфлоу|кеш-флоу|кэш-флоу|cashflow)      NAME=cashflow ;;
+  войс|voice)                                       NAME=voice ;;
+  ассистент|ассистент-диспетчер|диспетчер|dispatcher|assistant)
+    exec /usr/local/bin/voice-focus-clear "$PEER"
+    ;;
+esac
+
+CWD="/root/projects/$NAME"
+if [ ! -d "$CWD" ]; then
+  /usr/local/bin/voice-reply-tts "$PEER" "не нашёл проект $NAME"
+  echo "focus target not found: $CWD" >&2
+  exit 1
+fi
+
+NOW=$(date -Iseconds)
+printf '{"cwd":"%s","since":"%s","note":"voice-focus %s"}\n' "$CWD" "$NOW" "$NAME_RAW" \
+  > /var/lib/voice-bot/focus.json
+
+exec /usr/local/bin/voice-reply-tts "$PEER" "переключил на $NAME"
