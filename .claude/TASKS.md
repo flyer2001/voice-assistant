@@ -18,9 +18,13 @@ async callback + TTS dual channel (2026-07-05), Phase 6 focus routing
 Loop работает: mic → mlx-whisper local → VDS → inject в Claude-сессию →
 Yandex TTS → mac speaker.
 
-- [ ] **E2E dogfood** — Sergey за компом → `python /tmp/t3-mac-fire-and-poll.py`
-      на mac-home → живая проверка full loop. Done: 5 фраз подряд без ручного
-      вмешательства
+- [ ] **E2E dogfood** — живая проверка full loop, 5 фраз подряд без ручного
+      вмешательства. ⚠️ 2026-08-01 окружение на mac-home оказалось разобрано:
+      `/tmp/t3-mac-fire-and-poll.py` пропал (reboot), `mlx_whisper` и `ffmpeg`
+      отсутствовали. Восстановлено частично — создан venv
+      `~/.venvs/voice-agent` с mlx-whisper (системный python под PEP 668,
+      ставить туда нельзя), поставлен ffmpeg 8.1.2. Осталось положить t3 из
+      git в `~/bin` и прописать venv-питон вместо системного
 - [ ] **Whisper accuracy — разметить корпус.** Harness готов
       ([`bench/whisper-accuracy/`](../bench/whisper-accuracy/README.md)), 24 клипа
       прогнаны через turbo, аудио выложено. Осталось руками заполнить `truth` в
@@ -29,10 +33,11 @@ Yandex TTS → mac speaker.
 - [ ] **Whisper accuracy на боевых фразах** — текущий корпус весь тестовый
       («тестовое сообщение», «проверка связи»), WER по нему занижен. Нужны
       реальные RU+EN mixed запросы с техтерминами. Накопится сам при dogfood
-- [ ] **Сравнить turbo vs large-v3** на одном корпусе — VK-путь ходит в
-      `faster-whisper-large-v3-turbo` (ubuntu-home), mac-агент в
-      `whisper-large-v3-mlx`. turbo когда-то отвергли как «хуже на edge cases»,
-      но бот работает через него. Нужен HTTP-эндпоинт на маке либо ssh-прогон
+- [ ] **Перегнать large-v3 с `initial_prompt`** — сравнение 2026-08-01
+      ([comparison](../bench/whisper-accuracy/comparison-2026-08-01.md)) гоняло
+      large-v3 без промпта, а рабочий агент подаёт техтермины из config.json.
+      Проигрыш на латинице (`войс с` вместо `voice.sess`) может быть из-за
+      этого. Done: третий прогон в results, обновлённый comparison
 - [ ] **Stop hook — живая проверка после фикса** (2026-08-01 логика починена,
       7 тестов green, но E2E с реальным маком не гонялся). Done: голос → ответ
       с tool-вызовами внутри → TTS прочитал финальный текст

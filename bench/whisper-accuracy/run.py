@@ -155,6 +155,68 @@ def cmd_groundtruth(args):
           "бот тогда, правь его, а не пиши с нуля. Пустой truth = клип пропущен.")
 
 
+def cmd_merge(args):
+    """Влить прогон, сделанный не через HTTP (например mlx на маке).
+
+    Ожидает JSON-список [{"msg_id": int, "text": str, "stt_ms": int}, ...].
+    Лишние msg_id (файлы вне корпуса) игнорируются.
+    """
+    files = sorted(f for f in os.listdir(HERE) if f.startswith("results-"))
+    if not files:
+        sys.exit("нет results-*.jsonl — сначала ./run.py transcribe")
+    path = os.path.join(HERE, files[-1])
+
+    external = {r["msg_id"]: r for r in json.load(open(args.file))}
+    rows, merged = [], 0
+    for line in open(path):
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        ext = external.get(r["msg_id"])
+        if ext:
+            r.setdefault("runs", {})[args.name] = {
+                k: v for k, v in ext.items() if k != "msg_id"}
+            merged += 1
+        rows.append(r)
+    with open(path, "w") as fh:
+        for r in rows:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print(f"влито {merged} записей как '{args.name}' → {path}")
+    unused = set(external) - {r["msg_id"] for r in rows}
+    if unused:
+        print(f"не из корпуса, пропущены: {sorted(unused)}")
+
+
+def cmd_disagree(args):
+    """Где модели разошлись — кандидаты на ошибку, до всякой разметки."""
+    files = sorted(f for f in os.listdir(HERE) if f.startswith("results-"))
+    if not files:
+        sys.exit("нет results-*.jsonl")
+    path = os.path.join(HERE, files[-1])
+    rows = [json.loads(l) for l in open(path) if l.strip()]
+    names = sorted({n for r in rows for n in r.get("runs", {})})
+    if len(names) < 2:
+        sys.exit(f"нужно ≥2 прогона, есть: {names or 'ни одного'}")
+
+    print(f"# Расхождения между {' и '.join(names)}\n")
+    shown = 0
+    for r in rows:
+        texts = {n: (r["runs"].get(n, {}) or {}).get("text", "") for n in names}
+        words = {n: normalize(t) for n, t in texts.items()}
+        base = names[0]
+        for n in names[1:]:
+            e, ln = wer(words[base], words[n])
+            if e == 0:
+                continue
+            shown += 1
+            print(f"## msg {r['msg_id']} ({r.get('duration_s')}s) — "
+                  f"{e} слов из {ln} расходятся")
+            for name in names:
+                print(f"  {name:<16} {texts[name]!r}")
+            print()
+    print(f"расходятся на {shown} из {len(rows)} клипов")
+
+
 def cmd_report(args):
     if not os.path.exists(GROUND):
         sys.exit(f"нет {GROUND} — сначала ./run.py groundtruth и заполни truth")
@@ -215,6 +277,14 @@ def main():
     g = sub.add_parser("groundtruth")
     g.add_argument("--force", action="store_true")
     g.set_defaults(fn=cmd_groundtruth)
+
+    m = sub.add_parser("merge")
+    m.add_argument("name", help="как назвать прогон, напр. mac-large-v3")
+    m.add_argument("file", help="JSON-список [{msg_id, text, stt_ms}]")
+    m.set_defaults(fn=cmd_merge)
+
+    d = sub.add_parser("disagree")
+    d.set_defaults(fn=cmd_disagree)
 
     r = sub.add_parser("report")
     r.add_argument("--results", default=None)
