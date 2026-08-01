@@ -15,7 +15,12 @@ import subprocess
 import sys
 
 MAX_TTS_CHARS = 2000
-REPLY_CMD = "/usr/local/bin/voice-mac-reply-both"
+# Переопределяется в интеграционном тесте на заглушку — иначе проверка
+# отправила бы Sergey'ю настоящее голосовое.
+REPLY_CMD = os.environ.get("VOICE_MAC_REPLY_CMD", "/usr/local/bin/voice-mac-reply-both")
+# Маркер дедупликации: тест уводит его во временный каталог, чтобы прогон
+# не оставлял следов в /tmp и не влиял на живой hook.
+MARKER_DIR = os.environ.get("VOICE_MAC_MARKER_DIR", "/tmp")
 
 
 def _parts(entry):
@@ -130,7 +135,7 @@ def main(path):
     if not combined:
         return 0
 
-    marker = f"/tmp/voice-mac-hook-last-{cid}.txt"
+    marker = os.path.join(MARKER_DIR, f"voice-mac-hook-last-{cid}.txt")
     if os.path.exists(marker):
         try:
             if open(marker).read() == combined:
