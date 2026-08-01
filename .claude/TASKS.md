@@ -19,12 +19,13 @@ Loop работает: mic → mlx-whisper local → VDS → inject в Claude-с
 Yandex TTS → mac speaker.
 
 - [ ] **E2E dogfood** — живая проверка full loop, 5 фраз подряд без ручного
-      вмешательства. ⚠️ 2026-08-01 окружение на mac-home оказалось разобрано:
-      `/tmp/t3-mac-fire-and-poll.py` пропал (reboot), `mlx_whisper` и `ffmpeg`
-      отсутствовали. Восстановлено частично — создан venv
-      `~/.venvs/voice-agent` с mlx-whisper (системный python под PEP 668,
-      ставить туда нельзя), поставлен ffmpeg 8.1.2. Осталось положить t3 из
-      git в `~/bin` и прописать venv-питон вместо системного
+      вмешательства. Окружение восстановлено 2026-08-01 (`install-mac.sh`):
+      venv `~/.venvs/voice-agent` + mlx-whisper, ffmpeg 8.1.2, t3 в `~/bin`,
+      враппер `~/bin/voice-agent-t3`.
+      ⚠️ **Запускать только локально в Terminal.app на маке.** Через ssh
+      re-exec в Aqua-домен падает с `Could not switch to audit session:
+      Operation not permitted`, когда экран заблокирован — а без Aqua нет
+      микрофона. Я проверить loop сам не могу, нужен ты за компом
 - [ ] **Whisper accuracy — разметить корпус.** Harness готов
       ([`bench/whisper-accuracy/`](../bench/whisper-accuracy/README.md)), 24 клипа
       прогнаны через turbo, аудио выложено. Осталось руками заполнить `truth` в

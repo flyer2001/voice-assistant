@@ -126,9 +126,10 @@ sudo ./install.sh
 ### Mac-home setup (t3 script)
 
 ```bash
-# scp из git → mac-home
-scp backend/voice-service/deploy/mac-client/t3-mac-fire-and-poll.py \
-    mac-home:/tmp/t3-mac-fire-and-poll.py
+# из git → mac-home, затем НА МАКЕ:
+scp backend/voice-service/deploy/mac-client/{install-mac.sh,t3-mac-fire-and-poll.py} \
+    mac-home:~/voice-install/
+ssh mac-home 'bash ~/voice-install/install-mac.sh'
 
 # ~/.voice-agent-mac/config.json:
 {
@@ -144,4 +145,19 @@ scp backend/voice-service/deploy/mac-client/t3-mac-fire-and-poll.py \
 
 `whisper.initial_prompt` — optional, override hardcoded default в script'е.
 Хорошо для domain jargon чтобы Whisper не russify'ил английские термы.
-Запуск (после venv setup + brew deps): `python3 /tmp/t3-mac-fire-and-poll.py`.
+
+**Запуск — только локально в Terminal.app на маке:**
+
+```bash
+~/bin/voice-agent-t3
+```
+
+Через ssh не работает: скрипт re-exec'ается в Aqua-домен через
+`launchctl asuser` (иначе нет доступа к микрофону), а при заблокированном
+экране это падает с `Could not switch to audit session: Operation not
+permitted`. Та же природа, что и потеря Keychain-контекста в ssh-сессиях.
+
+`install-mac.sh` кладёт скрипт в `~/bin` (раньше жил в `/tmp` и пропадал
+после reboot), поднимает venv `~/.venvs/voice-agent` и ставит ffmpeg.
+Системный python на маке под PEP 668 — pip-пакеты туда не ставятся, отсюда
+venv с `--system-site-packages` (mlx приходит из brew-питона).
