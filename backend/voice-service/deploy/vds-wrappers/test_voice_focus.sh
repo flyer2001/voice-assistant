@@ -84,6 +84,29 @@ echo "--- несуществующее не ломает фокус ---"
 expect_notfound крокодил
 expect_notfound ../etc
 
+echo "--- сброс фокуса (voice-focus-clear напрямую) ---"
+rm -f "$TMP/tts.txt" "$TMP/focus.json"
+VOICE_REPLY_TTS="$TMP/fake-tts" VOICE_FOCUS_PATH="$TMP/focus.json" \
+  "$HERE/voice-focus-clear" 123 >/dev/null 2>&1
+if [ "$(cat "$TMP/focus.json" 2>/dev/null)" = '{"cwd":null}' ]; then
+  echo "ok    clear пишет {\"cwd\":null}"; pass=$((pass+1))
+else
+  echo "FAIL  clear записал '$(cat "$TMP/focus.json" 2>/dev/null)'"; failed=$((failed+1))
+fi
+if [ "$(cat "$TMP/tts.txt" 2>/dev/null)" = "вернулся в диспетчер" ]; then
+  echo "ok    clear подтверждает голосом"; pass=$((pass+1))
+else
+  echo "FAIL  clear не подтвердил"; failed=$((failed+1))
+fi
+
+echo "--- запись атомарна: временных файлов не остаётся ---"
+leftovers=$(find "$TMP" -name 'focus.json.*' | wc -l)
+if [ "$leftovers" -eq 0 ]; then
+  echo "ok    мусора от mktemp нет"; pass=$((pass+1))
+else
+  echo "FAIL  осталось $leftovers временных файлов"; failed=$((failed+1))
+fi
+
 echo
 echo "$pass passed, $failed failed"
 [ "$failed" -eq 0 ]

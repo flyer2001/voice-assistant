@@ -64,7 +64,11 @@ if [ ! -d "$CWD" ]; then
 fi
 
 NOW=$(date -Iseconds)
-printf '{"cwd":"%s","since":"%s","note":"voice-focus %s"}\n' "$CWD" "$NOW" "$NAME_RAW" \
-  > "$FOCUS_FILE"
+# Через временный файл + rename: бот читает focus.json на каждое входящее
+# сообщение, и войс, пришедший ровно в момент записи, увидел бы обрезанный
+# JSON. mv атомарен в пределах одной ФС.
+TMP="$(mktemp "${FOCUS_FILE}.XXXXXX")"
+printf '{"cwd":"%s","since":"%s","note":"voice-focus %s"}\n' "$CWD" "$NOW" "$NAME_RAW" > "$TMP"
+mv -f "$TMP" "$FOCUS_FILE"
 
 exec "$REPLY_TTS" "$PEER" "переключил на $NAME"

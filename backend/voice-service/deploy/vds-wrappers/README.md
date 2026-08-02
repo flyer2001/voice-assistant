@@ -40,6 +40,21 @@ done
 `cmp`, не `diff` — вывод `diff` через Bash сжимается hook'ом rtk и может
 показать «identical» на различающихся файлах.
 
+## Тесты
+
+```bash
+./test_voice_focus.sh        # 21 проверка alias-таблицы и записи focus.json
+./test_voice_reply_tts.sh    # 13 проверок цепочки TTS→VK, без сетевых вызовов
+```
+
+Оба гоняют настоящие скрипты, но безвредно: `curl` подменяется заглушкой
+через PATH, секреты — фикстурами, `focus.json` пишется во временный каталог.
+Ни одного голосового Sergey'ю не уходит.
+
+Пути параметризованы через env (`VOICE_REPLY_TTS`, `VOICE_FOCUS_PATH`,
+`VOICE_PROJECTS_DIR`, `YANDEX_ENV_FILE`, `VK_ENV_FILE`) — дефолты совпадают
+с продом, так что поведение не меняется.
+
 ## Про алиасы voice-focus
 
 `ассистент`, `диспетчер`, `assistant`, `dispatcher` → делегируют в

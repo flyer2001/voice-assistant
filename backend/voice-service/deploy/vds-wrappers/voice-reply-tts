@@ -19,10 +19,27 @@ VOICE="${3:-alena}"
 LANG="ru-RU"
 API_VER="5.199"
 
-YA_KEY=$(grep -E '^API-?KEY=' /etc/yandex_speechkit.env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
-VK_TOKEN=$(grep -E '^VK_BOT_TOKEN=' /etc/vk-bot.env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
-[ -z "$YA_KEY" ] && { echo "API-KEY missing in /etc/yandex_speechkit.env" >&2; exit 1; }
-[ -z "$VK_TOKEN" ] && { echo "VK_BOT_TOKEN missing in /etc/vk-bot.env" >&2; exit 1; }
+# Пути к секретам через env — тест подменяет их на фикстуры и не читает
+# боевые токены. Дефолты = прод.
+YA_ENV="${YANDEX_ENV_FILE:-/etc/yandex_speechkit.env}"
+VK_ENV="${VK_ENV_FILE:-/etc/vk-bot.env}"
+
+# `|| true` обязателен: при отсутствующем файле grep выходит с кодом 2,
+# pipefail пробрасывает его на присваивание, и set -e убивает скрипт ДО
+# проверок ниже — оператор видел пустой вывод и код 2 вместо «API-KEY
+# missing». Поймано test_voice_reply_tts.sh.
+YA_KEY=$(grep -E '^API-?KEY=' "$YA_ENV" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)
+VK_TOKEN=$(grep -E '^VK_BOT_TOKEN=' "$VK_ENV" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)
+[ -z "$YA_KEY" ] && { echo "API-KEY missing in $YA_ENV" >&2; exit 1; }
+[ -z "$VK_TOKEN" ] && { echo "VK_BOT_TOKEN missing in $VK_ENV" >&2; exit 1; }
+
+# Яндекс режет synthesize на 5000 символов — молча вернул бы ошибку вместо
+# голоса. Обрезаем заранее и говорим об этом в stderr.
+MAX_TTS=${MAX_TTS_CHARS:-4500}
+if [ "${#TEXT}" -gt "$MAX_TTS" ]; then
+  echo "text ${#TEXT} chars > $MAX_TTS, обрезаю" >&2
+  TEXT="${TEXT:0:$MAX_TTS}"
+fi
 
 TMP=$(mktemp --suffix=.ogg)
 trap 'rm -f "$TMP"' EXIT
