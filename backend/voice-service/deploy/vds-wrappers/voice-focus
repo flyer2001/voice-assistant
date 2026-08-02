@@ -14,28 +14,57 @@
 #
 # Requires: voice-reply-tts installed, /var/lib/voice-bot writable by caller.
 set -euo pipefail
+
+# Пути через env — чтобы это можно было прогнать тестом, не отправляя
+# Sergey'ю настоящее голосовое и не трогая боевой focus.json.
+REPLY_TTS="${VOICE_REPLY_TTS:-/usr/local/bin/voice-reply-tts}"
+FOCUS_CLEAR="${VOICE_FOCUS_CLEAR:-/usr/local/bin/voice-focus-clear}"
+FOCUS_FILE="${VOICE_FOCUS_PATH:-/var/lib/voice-bot/focus.json}"
+PROJECTS_DIR="${VOICE_PROJECTS_DIR:-/root/projects}"
+
 PEER="${1:?peer_id required}"
 NAME_RAW="${2:?project name required}"
-NAME="$(echo "$NAME_RAW" | tr '[:upper:]' '[:lower:]' | tr -d '.,!?:;')"
+
+# Пунктуацию срезаем всегда, регистр — НЕ трогаем на этом шаге.
+# Раньше здесь стоял tr '[:upper:]' '[:lower:]', и он ломал два случая:
+#   1. myRep → myrep, каталога с таким именем нет → «не нашёл проект».
+#      Прямое имя проекта не работало, спасал только алиас «дневник».
+#   2. tr побайтовый, кириллицу не понижает → «Войс» оставалось «Войс»
+#      и мимо alias-таблицы.
+# Оба поймано test_voice_focus.sh 2026-08-01.
+CLEAN="$(printf '%s' "$NAME_RAW" | tr -d '.,!?:;')"
+
+# Каталог с таким именем есть — берём как есть, регистр важен.
+if [ -d "$PROJECTS_DIR/$CLEAN" ]; then
+  NAME="$CLEAN"
+else
+  # Иначе понижаем регистр (${,,} понимает UTF-8, в отличие от tr) и ищем алиас.
+  NAME="${CLEAN,,}"
+fi
 
 case "$NAME" in
   дневник|diary)                                    NAME=myRep ;;
   кэшфлоу|кешфлоу|кеш-флоу|кэш-флоу|cashflow)      NAME=cashflow ;;
-  войс|voice)                                       NAME=voice ;;
+  # Варианты, которые реально выдаёт Whisper на фразу «фокус на voice»
+  # (замеры 2026-08-01, bench/whisper-accuracy): voice.sess, voice-sess,
+  # voice-agent, «войс с». Точка срезается строкой выше, поэтому в таблице
+  # уже безточечные формы.
+  войс|voice|voicesess|voice-sess|войс\ с|войсс|voiceagent|voice-agent)
+    NAME=voice ;;
   ассистент|ассистент-диспетчер|диспетчер|dispatcher|assistant)
-    exec /usr/local/bin/voice-focus-clear "$PEER"
+    exec "$FOCUS_CLEAR" "$PEER"
     ;;
 esac
 
-CWD="/root/projects/$NAME"
+CWD="$PROJECTS_DIR/$NAME"
 if [ ! -d "$CWD" ]; then
-  /usr/local/bin/voice-reply-tts "$PEER" "не нашёл проект $NAME"
+  "$REPLY_TTS" "$PEER" "не нашёл проект $NAME"
   echo "focus target not found: $CWD" >&2
   exit 1
 fi
 
 NOW=$(date -Iseconds)
 printf '{"cwd":"%s","since":"%s","note":"voice-focus %s"}\n' "$CWD" "$NOW" "$NAME_RAW" \
-  > /var/lib/voice-bot/focus.json
+  > "$FOCUS_FILE"
 
-exec /usr/local/bin/voice-reply-tts "$PEER" "переключил на $NAME"
+exec "$REPLY_TTS" "$PEER" "переключил на $NAME"
