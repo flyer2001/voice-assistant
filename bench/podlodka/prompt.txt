@@ -1,0 +1,1 @@
+Обсуждаем AI-агентов в разработке: Claude Code, Cursor, Copilot, LLM, промпт, контекст, токены, субагенты, hooks, skills, MCP, CLAUDE.md, .claude, spec-driven development, TDD, юнит-тесты, CI, code review, рефакторинг, эмбеддинги, RAG, векторная база, n8n, workflow, пайплайн, деплой, observability, SRE, метрики, алерты, API, репозиторий, коммит, pull request, git.

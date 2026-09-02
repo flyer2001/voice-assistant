@@ -87,3 +87,6 @@ Sources/VoiceAssistant/Resources/whisperkit/openai_whisper-*/
 # python (глобально — было только bench/scripts/)
 __pycache__/
 *.pyc
+
+# скачанное аудио докладов — большое и восстановимо
+bench/podlodka/audio/
