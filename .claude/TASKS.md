@@ -75,6 +75,25 @@ Yandex TTS → mac speaker.
       Подтвердить, что модуль ES8388 — именно M5Stack Module Audio с M-Bus,
       а не generic breakout. Клавиатура для Tab5 к этому проекту не относится
 
+## Live-транскрипция (дедлайн 13.09, конференция 14–18.09)
+
+Ядро готово и проверено сквозным прогоном на реальном звуке:
+[`deploy/live-transcribe/`](../backend/voice-service/deploy/live-transcribe/README.md),
+обоснование — [`docs/live-transcribe.md`](../docs/live-transcribe.md).
+
+- [ ] **Sergey: включить obs-websocket на mac-work** — Настройки OBS →
+      Инструменты → obs-websocket, поставить галочку. Порт 4455 уже прописан.
+      Без этого не написать управление записью с VDS
+- [ ] **Sergey: добавить в OBS источник системного звука** (macOS Screen
+      Capture с включённым звуком). Один раз, дальше сцена сохраняется
+- [ ] Написать capture-obs (управление записью по websocket) — после того,
+      как сервер включён
+- [ ] Прогнать полный цикл на живом звуке доклада, померить задержку
+- [ ] Собрать словарь техтерминов под iOS/AI-тематику и проверить на
+      реальном звуке, а не вслепую (эффект модель-зависимый)
+- [ ] BlackHole на mac-home для собеседований — `brew install --cask
+      blackhole-2ch` плюс Multi-Output Device. Нужен пароль Sergey
+
 ## Phase 6 F5 — pattern analyzer
 
 Spec проверен на живых данных 2026-08-01 и поправлен (v1.0.0):
