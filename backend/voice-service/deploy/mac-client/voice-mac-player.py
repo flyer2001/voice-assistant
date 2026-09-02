@@ -14,6 +14,7 @@
 """
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -27,6 +28,30 @@ STATE = os.path.expanduser("~/.voice-agent-mac/player-watermark.txt")
 
 def log(msg):
     print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
+
+
+# Резолвер внутри LaunchAgent отвечает через раз: сам DNS исправен (dig и
+# dscacheutil отдают адрес мгновенно, роутер пингуется за 0.7 мс), но
+# getaddrinfo в этом контексте регулярно возвращает "nodename nor servname".
+# Кэшируем удачный ответ и переиспользуем — имя в URL остаётся прежним, так
+# что SNI и проверка сертификата не ломаются.
+_dns_cache = {}
+_real_getaddrinfo = socket.getaddrinfo
+
+
+def _cached_getaddrinfo(host, port, *args, **kwargs):
+    key = (host, port)
+    try:
+        res = _real_getaddrinfo(host, port, *args, **kwargs)
+        _dns_cache[key] = res
+        return res
+    except socket.gaierror:
+        if key in _dns_cache:
+            return _dns_cache[key]
+        raise
+
+
+socket.getaddrinfo = _cached_getaddrinfo
 
 
 def listing():
@@ -109,6 +134,7 @@ def main():
         write_watermark(mark)
         log(f"отметка выставлена на {mark or '(пусто)'}")
 
+    misses = 0
     while True:
         try:
             for ts, name in entries_for_me(listing()):
@@ -117,9 +143,18 @@ def main():
                 play(name)
                 mark = ts
                 write_watermark(mark)
+            misses = 0
         except Exception as e:
-            # Сеть моргнула или VDS перезапускается — не падаем, ждём дальше.
-            log(f"ошибка опроса: {e}")
+            # Сеть моргнула или VDS перезапускается — не падаем.
+            # Домашний резолвер (MikroTik) залипает кластерами: в первом же
+            # прогоне 13 ошибок из 28 строк лога, и ответ уезжал на 8 секунд,
+            # потому что после каждой ошибки ждали полный интервал. Теперь
+            # первые попытки повторяем почти сразу, и только если не отпускает
+            # надолго — переходим на обычный интервал, чтобы не долбить сеть.
+            misses += 1
+            log(f"ошибка опроса ({misses}): {e}")
+            time.sleep(0.3 if misses <= 10 else POLL_S)
+            continue
         time.sleep(POLL_S)
 
 

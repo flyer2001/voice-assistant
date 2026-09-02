@@ -5,6 +5,10 @@
 # launchctl asuser упирается в заблокированный экран. Агент стартует внутри
 # графической сессии и потому звук слышен даже при закрытом экране.
 #
+# Лог: /tmp/voice-mac-player.log, ошибки: /tmp/voice-mac-player.err
+# Перезапуск после правки скрипта:
+#   launchctl kickstart -k gui/$(id -u)/com.flyer2001.voice-mac-player
+#
 # Запускать НА МАКЕ:
 #   ./install-player.sh
 #
