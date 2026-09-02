@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# voice-say <peer_id> "<текст>" ["<короткий текст для озвучки>"]
+#
+# Режим живого диалога: текст улетает в VK (можно читать), а голос звучит
+# сразу на mac-home — руками ничего нажимать не надо.
+#
+# Голос в VK намеренно НЕ дублируется: Sergey его всё равно не открывает,
+# когда сидит за маком, а лишний синтез — это лишние деньги и секунды.
+# Нужен голос именно в VK (не за компом) — зови voice-reply-both.
+#
+# Третий аргумент — если полный текст для озвучки слишком длинный или
+# полон путей и англицизмов. Тогда в VK уходит полный, а вслух короткий.
+#
+# Требует запущенного плеера на маке: deploy/mac-client/install-player.sh
+set -euo pipefail
+
+REPLY="${VOICE_REPLY:-/usr/local/bin/voice-reply}"
+MAC_REPLY="${VOICE_MAC_REPLY:-/usr/local/bin/voice-mac-reply-both}"
+MAC_CLIENT="${VOICE_MAC_CLIENT:-mac-home}"
+
+PEER="${1:?peer_id required}"
+TEXT="${2:?text required}"
+SPOKEN="${3:-$TEXT}"
+
+"$REPLY" "$PEER" "$TEXT" >/dev/null
+
+# Мак может быть выключен или спать — это не повод падать, текст уже ушёл.
+if ! "$MAC_REPLY" "$MAC_CLIENT" "$SPOKEN" >/dev/null 2>&1; then
+  echo '{"ok":true,"text":"sent","mac":"failed"}'
+  exit 0
+fi
+
+echo '{"ok":true,"text":"sent","mac":"playing"}'
