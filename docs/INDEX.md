@@ -6,6 +6,9 @@
 
 ## Активное
 
+- [Где что крутится](where-runs-what.md) — карта прода: какая машина за что
+  отвечает, два разных Whisper (ubuntu-home для VK, mac-home для микрофона),
+  грабли dual-boot, как восстановить потерянное сообщение
 - [voice-agent-mac MVP plan](voice-agent-mac-mvp-plan.md) — голосовой агент на
   mac-home (whisper local → Claude → TTS). E2E green 2026-07-17. ⚠️ список
   T1–T12 внутри описывает Fable-standalone архитектуру, которая по факту
