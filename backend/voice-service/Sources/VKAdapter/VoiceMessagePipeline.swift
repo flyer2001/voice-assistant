@@ -130,8 +130,15 @@ public struct VoiceMessagePipeline: Sendable {
             do {
                 transcriptText = try await transcribe(audioBytes)
             } catch {
-                // S-3: Whisper down.
-                try? await vkSend(peerId, "⚠️ STT недоступен, audio сохранён, попробуй позже.")
+                // S-3: Whisper down. Называем msg_id — по нему запись
+                // находится в audit.jsonl и прогоняется вручную, когда STT
+                // вернётся. 2026-09-02 так и восстанавливали: машина с Whisper
+                // спала и загрузилась в Windows вместо Linux.
+                try? await vkSend(peerId, """
+                ⚠️ Распознавание речи недоступно — сообщение №\(msgId) не обработано.
+                Аудио сохранено, ничего не потеряно.
+                Попроси прогнать его вручную, когда сервис вернётся.
+                """)
                 audit(decision: "error_whisper", outcome: "error",
                       msgId: msgId, peerId: peerId,
                       audioPath: audioPath?.path, durationS: audio.duration,

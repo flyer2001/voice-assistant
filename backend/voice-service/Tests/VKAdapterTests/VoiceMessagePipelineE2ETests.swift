@@ -140,7 +140,7 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
     func test_S3_whisperFails_sendsError_noInject() async {
         struct WErr: Error {}
         let rec = makeRecorder()
-        let (update, msg) = makeUpdate(audio: audio())
+        let (update, msg) = makeUpdate(msgId: 4242, audio: audio())
         let (pipe, _) = makePipeline(
             rec: rec,
             transcribe: { _ in throw WErr() }
@@ -150,7 +150,12 @@ final class VoiceMessagePipelineE2ETests: XCTestCase {
 
         XCTAssertEqual(rec.injects.count, 0)
         XCTAssertEqual(rec.vkSends.count, 1)
-        XCTAssertTrue(rec.vkSends[0].1.contains("STT недоступен"))
+        // Уведомление должно называть номер сообщения и сказать, что аудио
+        // цело — по номеру запись находится в audit.jsonl для ручного прогона.
+        let notice = rec.vkSends[0].1
+        XCTAssertTrue(notice.contains("Распознавание речи недоступно"), notice)
+        XCTAssertTrue(notice.contains("сохранено"), "сказать что не потеряно: \(notice)")
+        XCTAssertTrue(notice.contains("4242"), "назвать msg_id: \(notice)")
     }
 
     // MARK: - S-4 Happy session not running
