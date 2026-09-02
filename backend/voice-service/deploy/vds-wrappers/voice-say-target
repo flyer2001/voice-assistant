@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# voice-say-target [mac-work|mac-home|...]   — куда voice-say играет звук.
+# Без аргумента печатает текущую цель.
+#
+# Плеер должен быть запущен на этой машине с тем же client_id:
+#   deploy/mac-client/install-player.sh  (VOICE_CLIENT_ID=<цель>)
+set -euo pipefail
+TARGET_FILE="${VOICE_SAY_TARGET_FILE:-/var/lib/voice-bot/say-target.txt}"
+
+if [ $# -eq 0 ]; then
+  cat "$TARGET_FILE" 2>/dev/null || echo "mac-home (по умолчанию, файла нет)"
+  exit 0
+fi
+
+mkdir -p "$(dirname "$TARGET_FILE")"
+TMP="$(mktemp "${TARGET_FILE}.XXXXXX")"
+printf '%s\n' "$1" > "$TMP"
+mv -f "$TMP" "$TARGET_FILE"
+echo "voice-say теперь играет на: $1"

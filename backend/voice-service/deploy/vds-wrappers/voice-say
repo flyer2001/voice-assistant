@@ -16,7 +16,10 @@ set -euo pipefail
 
 REPLY="${VOICE_REPLY:-/usr/local/bin/voice-reply}"
 MAC_REPLY="${VOICE_MAC_REPLY:-/usr/local/bin/voice-mac-reply-both}"
-MAC_CLIENT="${VOICE_MAC_CLIENT:-mac-home}"
+# Куда играть — в файле, потому что Sergey пересаживается между машинами.
+# Переключается voice-say-target, читается на каждый вызов.
+TARGET_FILE="${VOICE_SAY_TARGET_FILE:-/var/lib/voice-bot/say-target.txt}"
+MAC_CLIENT="${VOICE_MAC_CLIENT:-$(cat "$TARGET_FILE" 2>/dev/null || echo mac-home)}"
 
 PEER="${1:?peer_id required}"
 TEXT="${2:?text required}"
