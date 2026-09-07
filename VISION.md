@@ -16,8 +16,15 @@
 
 1. **Push-to-talk.** Hold-to-speak iOS, global hotkey macOS. Нет always-on
    listening, нет wake-word.
-2. **On-device STT.** WhisperKit (Apple-port'd Whisper) на iPhone / M1 Mac.
-   Аудио наружу не уходит — privacy + latency.
+2. **On-device STT — по возможности, не догма.** Локальное распознавание
+   предпочтительно ради скорости и экономии, но **не в ущерб качеству**
+   (уточнение Sergey, 2026-09-06). Облачное допустимо там, где оно лучше или
+   где локального просто нет.
+
+   Как сложилось на практике: VK-путь распознаёт на своей видеокарте дома
+   (faster-whisper), mac-агент — локально на Metal (mlx-whisper), синтез речи
+   делает Yandex SpeechKit в облаке. Навык Алисы, если делать, тоже облачный.
+   См. [docs/where-runs-what.md](docs/where-runs-what.md).
 3. **Текстовый transport.** Транскрипт → POST на VDS endpoint. VDS не ловит
    raw audio, только text.
 4. **Кратко обратно.** Reply — текст в bubble. TTS — пост-MVP, не базовое.
