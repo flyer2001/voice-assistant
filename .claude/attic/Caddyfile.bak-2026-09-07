@@ -1,0 +1,78 @@
+{
+	# 443 снаружи держит haproxy (SNI-швейцар), caddy слушает локально.
+	# Инцидент 2026-07-29: caddy и SoftEther дрались за 443 на каждом ребуте.
+	default_bind 127.0.0.1
+	# HTTP/3 (QUIC/UDP) через TCP-швейцара не проходит + UDP:443 занят VPN
+	servers {
+		protocols h1 h2
+		# haproxy шлёт PROXY v2 — иначе в логах все клиенты 127.0.0.1
+		# и fail2ban перестаёт видеть реальные адреса
+		listener_wrappers {
+			proxy_protocol {
+				allow 127.0.0.1/32
+			}
+			tls
+		}
+	}
+}
+
+# ты-че-пес.рф — статика (Nicepage-экспорт), git-clone в /srv/chepes-site.
+# Имена в punycode НАМЕРЕННО: в TLS SNI кириллица приходит A-label'ом, и
+# haproxy-швейцар сравнивает именно его. Юникод у caddy работал бы, но
+# разошёлся бы с ACL haproxy — расхождение двух регистров одного факта у
+# нас уже стреляло не раз.
+# Латинский псевдоним того же сайта. Отдаёт КОНТЕНТ, а не редирект на
+# ты-че-пес.рф: смысл алиаса в том, чтобы работать там, где кириллический
+# домен неудобен (копипаста, мессенджеры, чужие парсеры) — редирект это
+# свойство убил бы. Корень общий, копии файлов нет.
+chepes.cashflow-game.ru {
+    root * /srv/chepes-site
+    file_server
+    encode zstd gzip
+}
+
+xn-----nlcb3cnb5b8a.xn--p1ai {
+    root * /srv/chepes-site
+    file_server
+    encode zstd gzip
+}
+
+www.xn-----nlcb3cnb5b8a.xn--p1ai {
+    redir https://xn-----nlcb3cnb5b8a.xn--p1ai{uri} permanent
+}
+
+alena-emotolog.ru {
+    root * /srv/alena-site
+    file_server
+    encode zstd gzip
+}
+
+www.alena-emotolog.ru {
+    redir https://alena-emotolog.ru{uri} permanent
+}
+
+alena.cashflow-game.ru {
+    redir https://alena-emotolog.ru{uri} permanent
+}
+
+cashflow-game.ru {
+    handle /screenshots/* {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, OPTIONS"
+        header Access-Control-Allow-Headers "*"
+        root * /srv
+        file_server
+    }
+    handle /v1/voice/* {
+        reverse_proxy 10.10.0.1:8089
+    }
+    handle /voice-out/* {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, OPTIONS"
+        root * /srv
+        file_server browse
+    }
+    handle {
+        reverse_proxy 127.0.0.1:8080
+    }
+}

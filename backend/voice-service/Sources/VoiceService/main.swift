@@ -28,6 +28,26 @@ do {
 let baseConfig = buildConfiguration(token: token, plan: plan)
 var vkSendForConfig: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)? = nil
 
+// ── Маршрутизация по фокусу — общая для VK и навыка Алисы ────────────
+//
+// Раньше жила внутри VK-блока. Вынесена наверх, когда появился второй
+// голосовой канал: две копии одной логики разъехались бы на первой же правке.
+let focusEnabled = (env["VOICE_FOCUS_ENABLED"] ?? "true").lowercased() == "true"
+let focusState = FocusState(
+    path: URL(fileURLWithPath: env["VOICE_FOCUS_PATH"] ?? "/var/lib/voice-bot/focus.json")
+)
+let happyState = HappyState(happyHome: HappyState.defaultHome)
+try? focusState.initIfAbsent()
+
+/// Куда направить реплику: в проект под фокусом либо к диспетчеру.
+let resolveFocusTarget: @Sendable (String) -> (cwd: String, source: String) = { defaultCwd in
+    guard focusEnabled else { return (defaultCwd, "default") }
+    switch focusState.validate(try? focusState.read(), happyState: happyState) {
+    case .focus(let cwd):     return (cwd, "focus")
+    case .fallback(let why):  return (defaultCwd, "fallback_\(why)")
+    }
+}
+
 // ── VK voice bot — optional background loop ──────────────────────────
 //
 // Enabled via VK_BOT_ENABLED=true + /etc/vk-bot.env (token + group_id +
@@ -59,24 +79,11 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
 
     let maxAudioS = Int(env["VOICE_MAX_AUDIO_S"] ?? "") ?? 300
 
-    // Phase 6 F2 — focus routing. Reads /var/lib/voice-bot/focus.json per
-    // message. VOICE_FOCUS_ENABLED=false disables (returns default target).
-    let focusEnabled = (env["VOICE_FOCUS_ENABLED"] ?? "true").lowercased() == "true"
-    let focusPath = URL(fileURLWithPath: env["VOICE_FOCUS_PATH"] ?? "/var/lib/voice-bot/focus.json")
-    let focusState = FocusState(path: focusPath)
-    let happyState = HappyState(happyHome: HappyState.defaultHome)
-    try? focusState.initIfAbsent()
-
-    let resolveTargetFn: VoiceMessagePipeline.ResolveTargetFn = { @Sendable in
-        let focus = try? focusState.read()
-        switch focusState.validate(focus, happyState: happyState) {
-        case .focus(let cwd):
-            return (cwd, "focus")
-        case .fallback(let reason):
-            return (targetCwd, "fallback_\(reason)")
-        }
-    }
-    let resolveTarget: VoiceMessagePipeline.ResolveTargetFn? = focusEnabled ? resolveTargetFn : nil
+    // Phase 6 F2 — маршрутизация по фокусу. Резолвер общий с навыком Алисы,
+    // объявлен выше.
+    let resolveTarget: VoiceMessagePipeline.ResolveTargetFn? = focusEnabled
+        ? { @Sendable in resolveFocusTarget(targetCwd) }
+        : nil
 
     // Phase 6 F3-lite — VK text slash commands to set/clear focus without
     // going through dispatcher. Sergey types `/focus myRep` in VK → next voice
@@ -163,13 +170,68 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
     ])
 }
 
+// ── Навык Алисы — второй канал ввода ─────────────────────────────────
+//
+// Портативная колонка как микрофон: Яндекс распознаёт речь сам и шлёт нам
+// готовый текст. Годится для коротких команд — управления микрофоном в API
+// нет, пауза на размышление обрывает реплику. Подробности и ограничения:
+// docs/alice-skill-input.md.
+//
+// Включается ALICE_PATH_SECRET. Без него маршрут не поднимается.
+let aliceConfig: AliceConfig? = {
+    guard let secret = env["ALICE_PATH_SECRET"], !secret.isEmpty else { return nil }
+    guard case .live(let defaultCwd) = plan.happy else {
+        FileHandle.standardError.write(
+            Data("ALICE_PATH_SECRET задан, но HAPPY_MODE не live — навык отключён\n".utf8))
+        return nil
+    }
+    let messenger = LiveHappyInjectMessenger()
+    let logger = Logger(label: "alice")
+    let peer = env["VK_BOT_OWNER_IDS"] ?? ""
+
+    return AliceConfig(
+        pathSecret: secret,
+        skillId: env["ALICE_SKILL_ID"],
+        inject: { text in
+            let (cwd, source) = resolveFocusTarget(defaultCwd)
+            // Провенанс как у VK: сессия должна понимать, откуда реплика и
+            // куда отвечать. Колонка ответ не озвучит — навык не может
+            // заговорить первым, поэтому ответ уходит обычными каналами.
+            let header = [
+                "[voice from Sergey, src=alice-station, lang=ru, peer=\(peer)]",
+                "[reply: voice-say / voice-reply-both <peer> \"<text>\" — колонка ответ не озвучит]",
+                "[details: docs/alice-skill-input.md]",
+                "",
+                text
+            ].joined(separator: "\n")
+            do {
+                try await messenger.injectNoWait(text: header, targetCwd: cwd)
+                logger.info("реплика передана", metadata: [
+                    "cwd": .string(cwd), "focus_source": .string(source),
+                    "chars": .stringConvertible(text.count)
+                ])
+            } catch {
+                // Отвечать уже поздно — Алиса получила «передал» секунду назад.
+                logger.error("инжект не дошёл", metadata: [
+                    "cwd": .string(cwd), "error": .string("\(error)")
+                ])
+            }
+        }
+    )
+}()
+
+if aliceConfig != nil {
+    FileHandle.standardError.write(Data("навык Алисы включён\n".utf8))
+}
+
 let config = Configuration(
     token: baseConfig.token,
     replyProvider: baseConfig.replyProvider,
     sttProvider: baseConfig.sttProvider,
     vkSendProvider: vkSendForConfig,
     requestLogger: baseConfig.requestLogger,
-    audioLimits: baseConfig.audioLimits
+    audioLimits: baseConfig.audioLimits,
+    alice: aliceConfig
 )
 let app = VoiceServiceApp.make(config: config, host: host, port: port)
 try await app.runService()

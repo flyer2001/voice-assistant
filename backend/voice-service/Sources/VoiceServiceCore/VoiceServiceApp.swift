@@ -8,7 +8,46 @@ public enum VoiceServiceApp {
     /// when invoking `app.test(...)` or `app.run()`.
     public static func make(config: Configuration, host: String = "127.0.0.1", port: Int = 8089) -> some ApplicationProtocol {
         let router = Router()
-        router.add(middleware: BearerAuthMiddleware(token: config.token))
+        router.add(middleware: BearerAuthMiddleware(
+            token: config.token,
+            exemptPrefixes: config.alice.map { _ in ["/v1/alice"] } ?? []
+        ))
+
+        if let alice = config.alice {
+            // Секрет в пути: Яндекс заголовков не шлёт, а публиковать
+            // открытый маршрут, который инжектит текст в рабочую сессию,
+            // нельзя. Путь прописывается один раз в консоли Диалогов.
+            router.post("/v1/alice/\(alice.pathSecret)") { request, context -> Response in
+                let body = try await request.body.collect(upTo: 64 * 1024)
+                let req: AliceRequest
+                do {
+                    req = try JSONDecoder().decode(AliceRequest.self, from: Data(buffer: body))
+                } catch {
+                    return errorResponse(.badRequest, error: "malformed_request")
+                }
+
+                // Секрет мог утечь — сверяем ещё и навык.
+                if let expected = alice.skillId,
+                   let got = req.session.skill_id,
+                   got != expected {
+                    return errorResponse(.forbidden, error: "wrong_skill")
+                }
+
+                let outcome = AliceHandler.decide(req)
+
+                if case .accepted(let text) = outcome {
+                    // Отвечаем не дожидаясь: у Диалогов 4.5 секунды на всё,
+                    // включая сеть, а инжект в сессию столько не гарантирует.
+                    Task.detached { await alice.inject(text) }
+                }
+
+                let reply = AliceHandler.reply(for: outcome)
+                let data = try JSONEncoder().encode(reply)
+                var response = Response(status: .ok, body: .init(byteBuffer: ByteBuffer(data: data)))
+                response.headers[.contentType] = "application/json"
+                return response
+            }
+        }
         router.post("/v1/voice/audio") { request, context -> Response in
             guard let sttProvider = config.sttProvider else {
                 return errorResponse(.serviceUnavailable, error: "stt_unavailable")

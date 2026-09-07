@@ -9,9 +9,14 @@ public struct BearerAuthMiddleware<Context: RequestContext>: RouterMiddleware {
     public typealias Output = Response
 
     let token: String
+    /// Префиксы, которые проверять не надо. Нужен для навыка Алисы:
+    /// Яндекс шлёт запросы сам и заголовок Authorization не добавляет,
+    /// поэтому там своя защита — секрет в пути плюс сверка skill_id.
+    let exemptPrefixes: [String]
 
-    public init(token: String) {
+    public init(token: String, exemptPrefixes: [String] = []) {
         self.token = token
+        self.exemptPrefixes = exemptPrefixes
     }
 
     public func handle(
@@ -19,6 +24,10 @@ public struct BearerAuthMiddleware<Context: RequestContext>: RouterMiddleware {
         context: Context,
         next: (Request, Context) async throws -> Response
     ) async throws -> Response {
+        let path = request.uri.path
+        if exemptPrefixes.contains(where: { path.hasPrefix($0) }) {
+            return try await next(request, context)
+        }
         guard let header = request.headers[.authorization],
               header == "Bearer \(token)"
         else {

@@ -11,6 +11,8 @@ public struct Configuration: Sendable {
     public let vkSendProvider: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)?
     public let requestLogger: RequestLogger?
     public let audioLimits: AudioLimits
+    /// Навык Алисы. Nil — маршрут не поднимается вовсе.
+    public let alice: AliceConfig?
 
     public init(
         token: String,
@@ -18,7 +20,8 @@ public struct Configuration: Sendable {
         sttProvider: STTProvider? = nil,
         vkSendProvider: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)? = nil,
         requestLogger: RequestLogger? = nil,
-        audioLimits: AudioLimits = .default
+        audioLimits: AudioLimits = .default,
+        alice: AliceConfig? = nil
     ) {
         self.token = token
         self.replyProvider = replyProvider
@@ -26,6 +29,30 @@ public struct Configuration: Sendable {
         self.vkSendProvider = vkSendProvider
         self.requestLogger = requestLogger
         self.audioLimits = audioLimits
+        self.alice = alice
+    }
+}
+
+/// Настройки маршрута навыка Алисы.
+///
+/// Bearer-токеном не закрыть: Яндекс шлёт запросы сам и заголовок не
+/// добавляет. Поэтому секрет живёт в самом пути (`/v1/alice/<secret>`), а
+/// вдобавок сверяется идентификатор навыка из тела запроса. По HTTPS путь
+/// наружу не виден.
+public struct AliceConfig: Sendable {
+    public let pathSecret: String
+    /// Ожидаемый skill_id. Пусто — не проверяем (удобно в тестах).
+    public let skillId: String?
+    /// Куда девать распознанную реплику. Вызывается в фоне: ответ Диалогам
+    /// уходит сразу, иначе не уложиться в 4.5 секунды.
+    public let inject: @Sendable (String) async -> Void
+
+    public init(pathSecret: String,
+                skillId: String? = nil,
+                inject: @escaping @Sendable (String) async -> Void) {
+        self.pathSecret = pathSecret
+        self.skillId = skillId
+        self.inject = inject
     }
 }
 
