@@ -81,6 +81,10 @@ Yandex TTS → mac speaker.
 [`deploy/live-transcribe/`](../backend/voice-service/deploy/live-transcribe/README.md),
 обоснование — [`docs/live-transcribe.md`](../docs/live-transcribe.md).
 
+- [ ] **Уточнить у Sergey: что слушаем вживую.** Сессии в 07:00 и 10:00
+      попадают на рабочий день. Если вживую только вечерние в 16:00 —
+      живой захват нужен лишь для них, остальное по записям через
+      `transcribe_file.sh`. Расписание: `bench/podlodka/2026-09/schedule.md`
 - [ ] **Sergey: включить obs-websocket на mac-work** — Настройки OBS →
       Инструменты → obs-websocket, поставить галочку. Порт 4455 уже прописан.
       Без этого не написать управление записью с VDS
