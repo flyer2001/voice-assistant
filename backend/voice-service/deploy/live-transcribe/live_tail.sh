@@ -18,6 +18,10 @@ CHUNK_S="${VOICE_CHUNK_S:-20}"
 # 4 чанка по 20с = блок ~80 секунд речи, ~30 инжектов на часовой доклад.
 INJECT_EVERY="${VOICE_INJECT_EVERY:-4}"
 INJECT_CWD="${VOICE_INJECT_CWD:-}"
+# Точная адресация: sid надёжнее cwd, когда в каталоге живут две сессии —
+# оркестратор и слушатель. По cwd блоки ушли бы в самую свежую, и после
+# resume оркестратора адресат мог бы молча смениться.
+INJECT_SID="${VOICE_INJECT_SID:-}"
 INJECT="$HOME/projects/assistant/scripts/inject/inject.mjs"
 WHISPER="${VOICE_WHISPER_URL:-http://192.168.88.13:8000}"
 PROMPT_FILE="${VOICE_PROMPT_FILE:-}"
@@ -61,8 +65,10 @@ CHUNKS_IN_BUF=0
 
 flush_buffer() {
   [ -z "$BUF" ] && return 0
-  if [ -n "$INJECT_CWD" ]; then
-    node "$INJECT" --to-cwd "$INJECT_CWD" --message "[подлодка-live $BUF_FROM-$1]
+  if [ -n "$INJECT_SID" ] || [ -n "$INJECT_CWD" ]; then
+    local TARGET_ARGS
+    if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
+    node "$INJECT" "${TARGET_ARGS[@]}" --message "[подлодка-live $BUF_FROM-$1]
 [режим слушателя: не отвечай развёрнуто, только следи за листом ожидания.
 Попадание — короткий сигнал Sergey голосом, промах — молчаливый ack.]
 

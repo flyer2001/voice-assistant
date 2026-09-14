@@ -31,6 +31,11 @@ def shot_time(path):
         return datetime.strptime(
             f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}",
             "%Y-%m-%d %H:%M:%S")
+    m = re.search(r'(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2})-(\d{2})', name)
+    if m:                                                 # OBS: "Screenshot 2026-09-14 11-23-45.png"
+        return datetime.strptime(
+            f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}",
+            "%Y-%m-%d %H:%M:%S")
     return datetime.fromtimestamp(os.path.getmtime(path))
 
 
