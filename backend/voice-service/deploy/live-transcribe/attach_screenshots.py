@@ -60,6 +60,18 @@ def main():
     ap.add_argument("--out", default=None, help="куда писать (default: in place)")
     args = ap.parse_args()
 
+    # Журнал обработанных — в папке снимков, простой текст. Строка есть —
+    # снимок обработан и повторно не клеится (можно гонять скрипт сколько
+    # угодно). Sergey регулирует руками: удалил строку — снимок обработается
+    # заново, вписал сам — будет пропущен.
+    ledger_path = os.path.join(args.shots_dir, "processed.md")
+    done = set()
+    if os.path.exists(ledger_path):
+        for line in open(ledger_path):
+            name = line.split("→")[0].strip("- ").strip()
+            if name:
+                done.add(name)
+
     start = datetime.strptime(args.start, "%Y-%m-%d %H:%M:%S")
     lines, marks = parse_transcript(args.transcript)
     if not marks:
@@ -78,6 +90,8 @@ def main():
     for name in sorted(os.listdir(args.shots_dir)):
         if not name.lower().endswith((".png", ".jpg", ".jpeg")):
             continue
+        if name in done:
+            continue                       # уже обработан по журналу
         p = os.path.join(args.shots_dir, name)
         offset = (shot_time(p) - start).total_seconds()
         if offset < 0 or offset > last_offset:
@@ -85,7 +99,7 @@ def main():
         shots.append((offset, p))
 
     if not shots:
-        sys.exit("подходящих скриншотов не нашлось (все до --start?)")
+        sys.exit("подходящих скриншотов не нашлось (все обработаны или вне записи)")
 
     os.makedirs(assets, exist_ok=True)
     # К каждому снимку — последний таймкод, что был на экране в этот момент.
@@ -109,7 +123,14 @@ def main():
     out_path = args.out or args.transcript
     with open(out_path, "w") as fh:
         fh.write("\n".join(out_lines) + "\n")
+
+    with open(ledger_path, "a") as fh:
+        for offset, p in shots:
+            stamp = str(timedelta(seconds=int(offset)))
+            fh.write(f"- {os.path.basename(p)} → {os.path.basename(out_path)} [{stamp}]\n")
+
     print(f"прикреплено {len(shots)} скриншотов → {out_path}")
+    print(f"журнал: {ledger_path}")
 
 
 if __name__ == "__main__":
