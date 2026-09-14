@@ -64,6 +64,10 @@ def main():
     lines, marks = parse_transcript(args.transcript)
     if not marks:
         sys.exit("в транскрипте нет таймкодов вида **[HH:MM:SS]**")
+    # Верхняя граница: конец записи ≈ последний таймкод + чанк. Снимок,
+    # сделанный на СЛЕДУЮЩЕМ докладе, иначе приклеился бы в хвост этого —
+    # поймано 2026-09-14, снимок Мирзояна попал в конспект Бугра.
+    last_offset = marks[-1][0] + 60
 
     # Копируем снимки в assets/ рядом с транскриптом — Desktop у Sergey
     # чистится, а конспект должен остаться самодостаточным.
@@ -76,8 +80,8 @@ def main():
             continue
         p = os.path.join(args.shots_dir, name)
         offset = (shot_time(p) - start).total_seconds()
-        if offset < 0:
-            continue                       # снят до начала записи — не наш
+        if offset < 0 or offset > last_offset:
+            continue                       # снят до начала или после конца
         shots.append((offset, p))
 
     if not shots:
