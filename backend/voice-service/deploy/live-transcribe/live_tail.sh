@@ -12,7 +12,8 @@
 set -uo pipefail
 
 HOST="${1:?ssh-хост с записью}"
-OUT="${2:?куда писать конспект}"
+OUTDIR="${2:?каталог для конспектов}"
+mkdir -p "$OUTDIR"
 CHUNK_S="${VOICE_CHUNK_S:-20}"
 # Каждые сколько чанков инжектить накопленное в сессию-слушателя.
 # 4 чанка по 20с = блок ~80 секунд речи, ~30 инжектов на часовой доклад.
@@ -39,11 +40,16 @@ find_recording() {
     "find $REC_DIR -maxdepth 1 \\( -name '*.mkv' -o -name '*.mov' \\) -mmin -10 2>/dev/null | head -1"
 }
 
+while true; do   # дежурный цикл: запись за записью
+
 REC=""
 until [ -n "$REC" ]; do
-  REC="$(find_recording || true)"
-  [ -n "$REC" ] && break
-  echo "$(date +%H:%M:%S) жду появления записи в $REC_DIR на $HOST..."
+  CAND="$(find_recording || true)"
+  if [ -n "$CAND" ] && [ ! -f "$OUTDIR/.done-$(basename "$CAND")" ]; then
+    REC="$CAND"
+    break
+  fi
+  echo "$(date +%H:%M:%S) жду новой записи в $REC_DIR на $HOST..."
   sleep 10
 done
 echo "$(date +%H:%M:%S) запись: $REC"
@@ -51,6 +57,7 @@ echo "$(date +%H:%M:%S) запись: $REC"
 # Начало записи — из имени файла OBS ("2026-09-14 11-00-05.mkv"), чтобы
 # таймкоды конспекта совпадали со стенными часами скриншотов.
 BASE="$(basename "$REC")"
+OUT="$OUTDIR/${BASE%.*}.md"
 START_HHMMSS="$(echo "$BASE" | sed -nE 's/.*[ _]([0-9]{2})-([0-9]{2})-([0-9]{2})\..*/\1:\2:\3/p')"
 [ -z "$START_HHMMSS" ] && START_HHMMSS="00:00:00"
 
@@ -93,9 +100,9 @@ while true; do
 
   if [ $((DUR - POS)) -lt "$CHUNK_S" ]; then
     IDLE=$((IDLE + 1))
-    # Полторы минуты без новых данных — запись остановлена, доклад кончился.
+    # Полторы минуты без новых данных — запись остановлена.
     if [ "$IDLE" -ge 6 ]; then
-      echo "$(date +%H:%M:%S) запись не растёт, заканчиваю"
+      echo "$(date +%H:%M:%S) запись не растёт, закрываю $BASE"
       break
     fi
     sleep 15
@@ -130,3 +137,7 @@ while true; do
   POS=$((POS + CHUNK_S))
 done
 flush_buffer "$(printf '%02d:%02d:%02d' $((POS/3600)) $((POS%3600/60)) $((POS%60)))"
+touch "$OUTDIR/.done-$BASE"
+POS=0; IDLE=0
+echo "$(date +%H:%M:%S) готов к следующей записи"
+done   # дежурный цикл
