@@ -36,8 +36,11 @@ find_recording() {
   # глоб роняет всю команду; во-вторых, в ~/Movies лежат записи прошлых
   # месяцев — без фильтра по свежести хвост схватил бы январскую. Берём
   # только то, что менялось в последние 10 минут, то есть пишется сейчас.
+  # Сортировка по mtime обязательна: если OBS остановили и начали новую
+  # запись, под фильтр свежести попадают ОБЕ, а find отдаёт их в порядке
+  # каталога — без сортировки хвост цеплялся к остановленной.
   ssh -n -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
-    "find $REC_DIR -maxdepth 1 \\( -name '*.mkv' -o -name '*.mov' \\) -mmin -10 2>/dev/null | head -1"
+    "find $REC_DIR -maxdepth 1 \\( -name '*.mkv' -o -name '*.mov' \\) -mmin -10 -print0 2>/dev/null | xargs -0 stat -f '%m %N' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-"
 }
 
 while true; do   # дежурный цикл: запись за записью
@@ -76,8 +79,9 @@ flush_buffer() {
     local TARGET_ARGS
     if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
     node "$INJECT" "${TARGET_ARGS[@]}" --message "[подлодка-live $BUF_FROM-$1]
-[режим слушателя: не отвечай развёрнуто, только следи за листом ожидания.
-Попадание — короткий сигнал Sergey голосом, промах — молчаливый ack.]
+[режим слушателя: молчаливый приём, сверка с листом ожидания.
+Попадание — запись в questions.md + тихий текст в VK. Голосом — никогда:
+Sergey в эфире, врывание в наушники запрещено его фидбеком 2026-09-14.]
 
 $BUF" >/dev/null 2>&1       && echo "$(date +%H:%M:%S) инжект блока $BUF_FROM-$1"       || echo "$(date +%H:%M:%S) инжект НЕ дошёл ($BUF_FROM-$1), текст остаётся в файле"
   fi
