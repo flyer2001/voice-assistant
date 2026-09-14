@@ -27,12 +27,12 @@ FFMPEG_MAC="export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; ffmpeg"
 
 # Самый свежий mkv/mov в каталоге записей — его OBS сейчас и пишет.
 find_recording() {
-  # sh, не голая команда: на маке login-shell zsh, и несматченный глоб
-  # (*.mov при наличии только *.mkv) роняет ВСЮ команду ошибкой zsh —
-  # до ls дело не доходит. POSIX sh передаёт глоб литералом, ls его тихо
-  # отбрасывает через 2>/dev/null.
+  # find, а не ls по глобу: во-первых, на маке login-shell zsh и несматченный
+  # глоб роняет всю команду; во-вторых, в ~/Movies лежат записи прошлых
+  # месяцев — без фильтра по свежести хвост схватил бы январскую. Берём
+  # только то, что менялось в последние 10 минут, то есть пишется сейчас.
   ssh -n -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
-    "sh -c 'ls -t $REC_DIR/*.mkv $REC_DIR/*.mov 2>/dev/null' | head -1"
+    "find $REC_DIR -maxdepth 1 \\( -name '*.mkv' -o -name '*.mov' \\) -mmin -10 2>/dev/null | head -1"
 }
 
 REC=""
