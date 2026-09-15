@@ -13,6 +13,8 @@
   mac-home (whisper local → Claude → TTS). E2E green 2026-07-17. ⚠️ список
   T1–T12 внутри описывает Fable-standalone архитектуру, которая по факту
   заменена inject-loop'ом — см. BACKLOG
+- [Live-транскрипция: операционка](../backend/voice-service/deploy/live-transcribe/OPERATIONS.md)
+  — управление хвостом, параметры тюнинга, смена слушателя, скриншоты
 - [Live-транскрипция](live-transcribe.md) — расшифровка системного звука для
   конференций и созвонов: замеры скорости, выбор машины, режимы приватности
 - [voice patterns (F5)](voice-patterns.md) — post-hoc анализ войс-запросов
