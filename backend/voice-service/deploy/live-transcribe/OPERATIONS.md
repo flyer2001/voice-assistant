@@ -104,4 +104,48 @@ scp $D/shots/processed.md mac-work:'~/Movies/processed.md'   # вернуть ж
 - Конец записи = 90 с без роста файла; пауза в докладе длиннее — хвост
   закроет конспект раньше времени, следующая запись создаст новый
 
+## Запись в дороге и не с mac-work (проверено 2026-09-15)
+
+**mac-work остаётся доступен на мобильном интернете.** Туннель держит сам
+мак наружу (`ssh -N -R 2223:localhost:22 ufohosting`, LaunchAgent
+`com.sgpopyvanov.reverse-tunnel`) — VDS достаёт его из любой сети. Отдельно
+ничего настраивать не надо, хвост работает как дома.
+
+Если источник звука — **mac-home** (личный мак, например собеседование):
+
+- ставить ничего не нужно: OBS, ffmpeg, autossh, brew там уже есть.
+  BlackHole **не требуется** — OBS снимает системный звук через
+  ScreenCaptureKit, как на mac-work. Драйвер нужен только если понадобится
+  маршрутизация звука мимо OBS
+- вне домашней сети `ssh mac-home` (192.168.88.35, через WG) мёртв. Мак сам
+  поднимает обратный туннель:
+  ```bash
+  autossh -M 0 -f -N -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=no \
+    -i ~/.ssh/ufohosting -R 2222:localhost:22 root@ufohosting
+  ```
+  На VDS для него есть алиас `mac-home-tun` (localhost:2222), хвост
+  запускается с ним вместо `mac-work`. Исторический LaunchAgent —
+  `.claude/attic/com.flyer2001.reverse-tunnel.plist`
+- в GUI один раз: источник **macOS Audio Capture (Screen Capture)**,
+  разрешение Screen & System Audio Recording, путь записи `~/Movies`, хоткей
+  скриншота `⌘⇧Z`. Встроенный микрофон на mac-home мёртв — для живого голоса
+  только внешняя гарнитура
+
+**VNC не носит звук.** Зайти по Screen Sharing на удалённый мак и слушать
+там созвон нельзя — звук остаётся на той машине. OBS ставится там, где
+реально играет звук.
+
+**Трафик живого режима** — сырой wav 16 кГц, ~32 кБ/с вверх с мака. LTE
+тянет; при слабой связи разумнее не стримить, а забрать звук после:
+
+```bash
+ssh mac-work 'export PATH=/opt/homebrew/bin:$PATH; ffmpeg -v error \
+  -i ~/Movies/<запись>.mov -vn -ar 16000 -ac 1 -c:a libopus -b:a 24k /tmp/talk.opus'
+scp mac-work:/tmp/talk.opus /srv/voice-out/
+```
+
+~11 МБ на час. Запись всегда лежит локально на маке, так что живой хвост —
+best-effort, а не единственный шанс.
+
 [← README.md](README.md)
