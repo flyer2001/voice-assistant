@@ -65,3 +65,81 @@
 
 @lvbond (Бондаренко), @ivanopcode (Опарин). У Кодряна, Гришутина и Бугра
 телеграм-ников нет — доставать из чата сезона.
+
+## ⚠️ Если снова слушаем доклады в эфире — переключить хвост на себя
+
+Хвост живой транскрипции крутится в tmux-сессии `live-tail` на VDS и шлёт блоки
+на **sid прежней сессии-слушателя** (`cmu0uh4bg0g9yx50ubkrajymz`). Пока он туда
+светит, новая сессия блоков не увидит, а тишина неотличима от поломки.
+
+Для **разбора записей это не нужно** — только если Sergey снова включает OBS.
+
+**1. Взять свой happy-sid:**
+```bash
+jq -r '.sessions | to_entries[]
+  | select(.value.metadata.path=="/root/projects/voice"
+           and .value.metadata.lifecycleState=="running")
+  | .key' ~/.happy/sessions.json
+```
+Если строк несколько — твоя та, что создана последней; свериться можно по
+`ListAgents` (эта сессия не показывает саму себя, значит твой sid тот, которого
+в списке нет).
+
+**2. Перезапустить хвост со своим sid:**
+```bash
+tmux kill-session -t live-tail 2>/dev/null; tmux new-session -d -s live-tail \
+  "VOICE_REC_DIR='\$HOME/Movies' \
+   VOICE_CHUNK_S=15 \
+   VOICE_INJECT_EVERY=2 \
+   VOICE_INJECT_SID=<свой sid> \
+   VOICE_PROMPT_FILE=/root/projects/voice/bench/podlodka/2026-09/prompt.txt \
+   /root/projects/voice/backend/voice-service/deploy/live-transcribe/live_tail.sh \
+   mac-work /srv/voice-out/live >> /srv/voice-out/live/tail.log 2>&1"
+```
+
+**3. Проверить, что живой и ждёт:**
+```bash
+tmux ls | grep live-tail
+tail -3 /srv/voice-out/live/tail.log
+```
+Должно быть `жду новой записи в $HOME/Movies на mac-work...`
+
+**Грабли:** параметры менять только **между записями**. Перезапуск посреди
+доклада не рвёт конспект (файл дописан), но недоинжекченный буфер теряется и
+распознавание начинается с нулевой позиции заново.
+
+Полная операционка — `backend/voice-service/deploy/live-transcribe/OPERATIONS.md`.
+
+**Правила слушателя не меняются:** молчаливый приём, попадание в лист ожидания →
+запись в `/srv/voice-out/live/questions.md` + тихий текст в VK
+(`voice-reply 360258728 "..."`). **Голосом в эфир — никогда**, память проекта
+`feedback_no_voice_interrupts_while_listening`.
+
+## Состояние на момент закрытия сессии (16.09, 21:10)
+
+**Закоммичено и запушено:** заметки myRep со всеми четырьмя презентациями,
+handoff, фикс `live_tail.sh`, транскрипт Гришутина со вклеенными скриншотами,
+журнал `processed.md`.
+
+**Лежит на диске, но НЕ в git** (намеренно — тяжёлое):
+- `/srv/voice-out/talks/` — четыре файла, 298 МБ суммарно
+- `/srv/voice-out/live/` — конспекты всех живых записей и `questions.md`
+- `/srv/screenshots/31254efb-.../` — картинки схем из презентаций, на них
+  ссылаются заметки myRep
+
+**Свежий yt-dlp** живёт в venv:
+`/tmp/claude-0/-root-projects-voice/31254efb-1278-450f-8d04-2f6352c0ec9d/scratchpad/ytenv/`
+Это скретчпад прошлой сессии — он может быть вычищен. Если venv пропал, пересоздать:
+`python3 -m venv ytenv && ./ytenv/bin/pip install -U yt-dlp`
+
+**`questions.md` устроен границами контекста.** Там подряд лежат: спайк,
+доклады 14.09 (Бугор, Мирзоян, Опарин), 15.09 (Гришутин), дейлики и груминги
+Sergey за 15 и 16 сентября. Ищи по строкам `# ГРАНИЦА КОНТЕКСТА N` — их девять.
+Для разбора докладов нужны только блоки с пометками `[бугор]`, `[мирзоян]`,
+`[опарин]`, `[гришутин]`; рабочие созвоны туда же попали, но к конференции
+отношения не имеют.
+
+**Что НЕ начато вообще:** транскрибация обеих записей. Это и есть первый шаг.
+
+**Рабочие созвоны Sergey** (дейлик и груминг 16.09) разобраны и отправлены
+cross-session в сессию `avito-aider-claude-cli`. Повторно их трогать не нужно.

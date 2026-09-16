@@ -20,3 +20,6 @@
 - Screenshot 2026-09-14 11-31-03.png → 14-bugor-metrics.md [0:29:56]
 - Screenshot 2026-09-14 11-39-18.png → 14-bugor-metrics.md [0:38:11]
 - Screenshot 2026-09-14 14-33-55.png → 14-mirzoyan-tokenmaxing.md [0:33:27]
+- Screenshot 2026-09-15 11-16-30.png → 2026-09-15-grishutin.md [0:17:29]
+- Screenshot 2026-09-15 11-19-23.png → 2026-09-15-grishutin.md [0:20:22]
+- Screenshot 2026-09-15 11-36-33.png → 2026-09-15-grishutin.md [0:37:32]
