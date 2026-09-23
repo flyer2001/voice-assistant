@@ -10,7 +10,7 @@ Claude-сессии, переживает их закрытие.
 
 ```bash
 tmux ls | grep live-tail                # жив?
-tail -5 /srv/voice-out/live/tail.log    # что делает
+tail -5 /srv/voice-private/live/tail.log    # что делает
 tmux kill-session -t live-tail          # остановить
 ```
 
@@ -24,7 +24,7 @@ tmux kill-session -t live-tail 2>/dev/null; tmux new-session -d -s live-tail \
    VOICE_INJECT_SID=<sid сессии-слушателя> \
    VOICE_PROMPT_FILE=/root/projects/voice/bench/podlodka/2026-09/prompt.txt \
    /root/projects/voice/backend/voice-service/deploy/live-transcribe/live_tail.sh \
-   mac-work /srv/voice-out/live >> /srv/voice-out/live/tail.log 2>&1"
+   mac-work /srv/voice-private/live >> /srv/voice-private/live/tail.log 2>&1"
 ```
 
 Хвост дежурит постоянно: Sergey жмёт запись в OBS → конспект пошёл сам;
@@ -37,7 +37,7 @@ tmux kill-session -t live-tail 2>/dev/null; tmux new-session -d -s live-tail \
 2. Передать сессии-слушателю контекст доклада + лист (инжектом; НЕ угадывать
    доклад по расписанию — оно плывёт, вчера на этом ошиблись)
 3. Sergey жмёт запись — дальше само
-4. После записи: конспект в `/srv/voice-out/live/<имя записи>.md`, вопросы
+4. После записи: конспект в `/srv/voice-private/live/<имя записи>.md`, вопросы
    в `questions.md` там же
 5. Скриншоты: забрать с мака, вклеить, журнал обновить (ниже)
 
@@ -83,7 +83,7 @@ Sergey жмёт `⌘⇧Z` (хоткей «Скриншот вывода» OBS) �
 D=/root/projects/voice/bench/podlodka/2026-09
 scp 'mac-work:~/Movies/Screenshot <дата>*.png' $D/shots/
 scp mac-work:'~/Movies/processed.md' $D/shots/processed.md   # забрать правки Sergey
-cp "/srv/voice-out/live/<запись>.md" $D/transcripts/<имя>.md
+cp "/srv/voice-private/live/<запись>.md" $D/transcripts/<имя>.md
 backend/voice-service/deploy/live-transcribe/attach_screenshots.py \
   $D/transcripts/<имя>.md $D/shots --start "<дата время из имени записи>"
 scp $D/shots/processed.md mac-work:'~/Movies/processed.md'   # вернуть журнал
