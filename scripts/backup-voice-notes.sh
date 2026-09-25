@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 # backup-voice-notes.sh — шифрованный бэкап конспектов созвонов.
-# version: 1.0.0
+# version: 2.0.0
 # bumped: 2026-09-25
-# bumped_reason: initial — /srv/voice-private лежал единственной копией на VDS
+# bumped_reason: behavior change по приёмке agentops — три ложных зелёных
+#   закрыты: (1) тревога при любом провале (её не было ВОВСЕ: крон писал в лог,
+#   лог не читал никто); (2) пустой источник больше не «успех» (0 файлов в
+#   архиве проходили проверку `n_arc < n_src` как 0<0); (3) успех признаётся
+#   только по ФАКТИЧЕСКИ созданному сейчас файлу — при падении tar|gpg скрипт
+#   отчитывался по вчерашнему/сегодняшнему файлу, лежавшему раньше.
+#   Плюс `--verify-file <arc>` — проверить любой архив, в т.ч. скачанный с офсайта.
+# prev: 1.0.0 (2026-09-25) — initial — /srv/voice-private лежал единственной копией на VDS
 #
 # ЗАЧЕМ. Конспекты рабочих созвонов (`/srv/voice-private/live/*.md`) не лежат
 # в git осознанно: наружу их не отдаём. Из-за этого у них не было вообще
@@ -33,19 +40,31 @@ DEST="${VOICE_NOTES_DEST:-/root/backups/configs}"
 # до его прогона, не уедет никогда. Запас в сутки закрывает эту щель.
 KEEP="${VOICE_NOTES_KEEP:-8}"
 
-APPLY=0 VERIFY=0
+# Тревога. Её не было вовсе — дыра, названная нами же при сдаче на приёмку:
+# «крон молча пишет в лог, и лог никто не читает». Уровень notify (текст в ВК),
+# не act: пропущенный бэкап конспектов — не пожар, но узнать о нём надо в тот
+# же день, а не в день аварии.
+NOTIFY="${VOICE_NOTES_NOTIFY:-/root/projects/agentops/bin/notify.sh}"
+die() {  # die <сообщение> [код]
+  echo "$1" >&2
+  [[ -x "$NOTIFY" ]] && "$NOTIFY" notify "Бэкап конспектов созвонов НЕ сделан: $1" >/dev/null 2>&1 || true
+  exit "${2:-2}"
+}
+
+APPLY=0 VERIFY=0 VERIFY_FILE=
 while (($#)); do
   case "$1" in
     --apply)  APPLY=1;  shift ;;
     --verify) VERIFY=1; shift ;;
+    --verify-file) VERIFY_FILE="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "backup-voice-notes: unknown arg '$1'" >&2; exit 2 ;;
   esac
 done
 
-[[ -d "$SRC" ]] || { echo "нет источника $SRC" >&2; exit 2; }
+[[ -n "$VERIFY_FILE" ]] || [[ -d "$SRC" ]] || die "нет источника $SRC" 
 
-if (( ! APPLY )); then
+if (( ! APPLY )) && [[ -z "$VERIFY_FILE" ]]; then
   echo "[dry-run] $SRC → $DEST/voice-notes-$(date +%F).tar.gz.gpg"
   du -sh "$SRC"
   find "$SRC" -type f | wc -l | xargs echo "  файлов:"
@@ -63,12 +82,12 @@ if [[ -z "$PASSFILE" ]]; then
     set -a; . "$HOME/.bitwarden/access.env"; set +a
     BWS_ACCESS_TOKEN="${BWS_ACCESS_TOKEN:-${key:-}}"
   fi
-  [[ -n "${BWS_ACCESS_TOKEN:-}" ]] || { echo "нет фразы: ни CONFIG_BACKUP_PASSFILE, ни bws-токена" >&2; exit 2; }
+  [[ -n "${BWS_ACCESS_TOKEN:-}" ]] || die "нет фразы: ни CONFIG_BACKUP_PASSFILE, ни bws-токена" 
   export BWS_ACCESS_TOKEN
   ID=$(bws secret list 2>/dev/null | jq -r '.[] | select(.key=="config_backup_passphrase") | .id')
-  [[ -n "$ID" ]] || { echo "в bws нет секрета config_backup_passphrase" >&2; exit 2; }
+  [[ -n "$ID" ]] || die "в bws нет секрета config_backup_passphrase" 
   PASSPHRASE=$(bws secret get "$ID" 2>/dev/null | jq -r .value)
-  [[ -n "$PASSPHRASE" ]] || { echo "bws вернул пустую фразу" >&2; exit 2; }
+  [[ -n "$PASSPHRASE" ]] || die "bws вернул пустую фразу" 
 fi
 
 gpg_enc() {  # gpg_enc <out-file>  (stdin = поток tar)
@@ -90,22 +109,44 @@ gpg_dec() {  # gpg_dec <in-file>  (stdout = поток tar)
   fi
 }
 
+# Проверка отдельного архива: ради дня аварии — расшифровать то, что реально
+# лежит на приёмнике, не создавая нового бэкапа.
+if [[ -n "$VERIFY_FILE" ]]; then
+  [[ -s "$VERIFY_FILE" ]] || die "нет архива $VERIFY_FILE"
+  n=$(gpg_dec "$VERIFY_FILE" | tar tzf - 2>/dev/null | grep -vc '/$')
+  (( n > 0 )) || die "архив $VERIFY_FILE не читается обратно (0 файлов)"
+  echo "verify-file ok: $n файлов читаются из $VERIFY_FILE"
+  exit 0
+fi
+
 mkdir -p "$DEST"; chmod 700 "$DEST"
 ARC="$DEST/voice-notes-$(date +%F).tar.gz.gpg"
 
+# 💣 ПУСТОЙ ИСТОЧНИК — НЕ УСПЕХ. Пустой каталог даёт валидный tar.gz и валидный
+# gpg: на диске такой архив неотличим от здорового, а восстанавливать из него
+# нечего. Прежняя проверка `n_arc < n_src` пропускала это как 0 < 0 — ровно тот
+# зеркальный отказ, который приёмка и искала.
+N_SRC=$(find "$SRC" -type f | wc -l)
+(( N_SRC > 0 )) || die "в источнике $SRC ноль файлов — бэкапировать нечего"
+
 # ponytail: tar пишет пути без ведущего /, восстановление — `tar xzf - -C /`.
-tar czf - --absolute-names --warning=no-file-changed "$SRC" 2>/dev/null | gpg_enc "$ARC"
-[[ -s "$ARC" ]] || { echo "архив не создался" >&2; exit 2; }
+# 💣 Пишем в ВРЕМЕННЫЙ файл и только потом переносим. Иначе `-s "$ARC"` не
+# отличает «создан сейчас» от «лежал раньше»: при падении tar|gpg скрипт
+# отчитывался успехом по архиву предыдущего прогона за то же число.
+TMP_ARC="$ARC.part.$$"
+trap 'rm -f "$TMP_ARC"' EXIT
+tar czf - --absolute-names --warning=no-file-changed "$SRC" 2>/dev/null | gpg_enc "$TMP_ARC"
+PIPE_RC=("${PIPESTATUS[@]}")
+[[ -s "$TMP_ARC" ]] || die "архив не создался (tar rc=${PIPE_RC[0]}, gpg rc=${PIPE_RC[1]})"
+mv -f "$TMP_ARC" "$ARC"
 chmod 600 "$ARC"
 
 if (( VERIFY )); then
   # Проверка не «файл есть», а «файл читается обратно»: битый gpg или пустой
   # tar выглядят на диске ровно как здоровый архив.
-  n_src=$(find "$SRC" -type f | wc -l)
   n_arc=$(gpg_dec "$ARC" | tar tzf - 2>/dev/null | grep -vc '/$')
-  if (( n_arc < n_src )); then
-    echo "verify НЕ сошёлся: в архиве $n_arc файлов, в источнике $n_src" >&2
-    exit 2
+  if (( n_arc < N_SRC )); then
+    die "verify НЕ сошёлся: в архиве $n_arc файлов, в источнике $N_SRC"
   fi
   echo "verify ok: $n_arc файлов читаются обратно"
 fi
