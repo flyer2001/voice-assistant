@@ -60,6 +60,12 @@ Yandex TTS → mac speaker.
 - [!] Mount voice-repo через sshfs — blocked: нужен macFUSE (системное
       расширение → пароль + разрешение в System Settings + reboot). Только
       Sergey. Альтернатива без блокера — отдельный `git clone` на маке
+- [ ] **Решить, проверять ли на mac-home тот же класс отказов, что убил
+      whisper 24.09** (suspend ломает резидента, health при этом зелёный).
+      Там ollama с моделью на 24 ГБ — проверка «работой» загрузит её
+      в память личной машины, поэтому agentops ждёт согласия Sergey.
+      Контекст — `agentops/docs/gpu-hosts-and-sleep.md` и memory
+      `reference_ubuntu_home_sleep_breaks_cuda`
 
 ## Phase 7 — закупка железа (корзина собрана 2026-08-29)
 
@@ -87,6 +93,12 @@ tmux `live-tail`. Операционка:
 > `python3 -m venv ytenv && ./ytenv/bin/pip install -U yt-dlp`
 > Записи лежат в `/srv/voice-out/talks/` (audio.mp3 + video.mp4 720p).
 > Прошлая сессия записала это как «YouTube blocked» — диагноз был неверный.
+
+> **Пустой конспект ≠ тишина в эфире (24.09).** `/health` отдаёт 200 при
+> мёртвой после suspend CUDA. `live_tail.sh` теперь сам проверяет
+> распознавание перед стартом и различает в логе `тишина` и
+> `ОШИБКА whisper HTTP <код>`; пробуждение ubuntu-home чинит GPU хуком
+> agentops. Диагностика — `~/.claude/docs/live-transcribe.md`.
 
 Закрыто по ходу: полный цикл на живом звуке (задержка ~45 с), словарь
 проверен, прошлая Подлодка расшифрована и разобрана до сводки. Websocket
