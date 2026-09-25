@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
 # backup-voice-notes.sh — шифрованный бэкап конспектов созвонов.
-# version: 3.0.0
+# version: 2.0.0
 # bumped: 2026-09-25
-# bumped_reason: behavior change — добавлен второй источник: /srv/voice-out/accuracy
-#   (корпус для замеров точности STT, часть записей живые за июнь — повторить
-#   бенчмарк без них нельзя) и *.md из /srv/voice-out. Остальное в voice-out
-#   расходное и НЕ бэкапится — это решение, а не умолчание. Snapshot v2.0.0.
-# prev: 2.0.0 (2026-09-25) — behavior change по приёмке agentops — три ложных зелёных
+# bumped_reason: behavior change по приёмке agentops — три ложных зелёных
 #   закрыты: (1) тревога при любом провале (её не было ВОВСЕ: крон писал в лог,
 #   лог не читал никто); (2) пустой источник больше не «успех» (0 файлов в
 #   архиве проходили проверку `n_arc < n_src` как 0<0); (3) успех признаётся
 #   только по ФАКТИЧЕСКИ созданному сейчас файлу — при падении tar|gpg скрипт
 #   отчитывался по вчерашнему/сегодняшнему файлу, лежавшему раньше.
 #   Плюс `--verify-file <arc>` — проверить любой архив, в т.ч. скачанный с офсайта.
-#   1.0.0 (2026-09-25) — initial — /srv/voice-private лежал единственной копией на VDS
+# prev: 1.0.0 (2026-09-25) — initial — /srv/voice-private лежал единственной копией на VDS
 #
 # ЗАЧЕМ. Конспекты рабочих созвонов (`/srv/voice-private/live/*.md`) не лежат
 # в git осознанно: наружу их не отдаём. Из-за этого у них не было вообще
@@ -28,11 +24,9 @@
 # Фраза — тот же секрет bws `config_backup_passphrase`, что у backup-configs.sh:
 # один пароль на восстановление вместо второго, который забудется.
 #
-# Usage: backup-voice-notes.sh [--apply] [--verify] [--verify-file <arc>]
+# Usage: backup-voice-notes.sh [--apply] [--verify]
 #   без --apply — DRY-RUN: печатает, что заархивировал бы
-#   --verify    — после создания расшифровать и сверить число файлов
-#   --verify-file <arc> — проверить готовый архив (например скачанный с офсайта),
-#                 ничего не создавая
+#   --verify    — после создания расшифровать и сверить список файлов
 #
 # Восстановление:
 #   gpg -d voice-notes-YYYY-MM-DD.tar.gz.gpg | tar xzf - -C /
@@ -42,19 +36,6 @@ set -uo pipefail
 
 SRC="${VOICE_NOTES_SRC:-/srv/voice-private}"
 DEST="${VOICE_NOTES_DEST:-/root/backups/configs}"
-# Второй источник. `/srv/voice-out` целиком расходный — прогоны voice-agent,
-# ogg и json, переживать их потерю не жалко. НО `accuracy/` — корпус для
-# замеров точности STT, часть записей живые за июнь: потеряв его, повторить
-# бенчмарк на тех же данных нельзя, а новые такие не запишешь. Туда же
-# попал `podlodka-live.md` — конспект, оказавшийся не в своём каталоге.
-# Переопределение VOICE_NOTES_SRC (тесты, разовый прогон) отключает добор:
-# один явно названный источник — значит ровно он.
-EXTRA=()
-if [[ -z "${VOICE_NOTES_SRC:-}" ]]; then
-  [[ -d /srv/voice-out/accuracy ]] && EXTRA+=(/srv/voice-out/accuracy)
-  while IFS= read -r f; do EXTRA+=("$f"); done \
-    < <(find /srv/voice-out -maxdepth 1 -type f -name '*.md' 2>/dev/null)
-fi
 # 8, а не 7: офсайт ходит раз в неделю (вс 06:30), и день, выпавший локально
 # до его прогона, не уедет никогда. Запас в сутки закрывает эту щель.
 KEEP="${VOICE_NOTES_KEEP:-8}"
@@ -85,8 +66,8 @@ done
 
 if (( ! APPLY )) && [[ -z "$VERIFY_FILE" ]]; then
   echo "[dry-run] $SRC → $DEST/voice-notes-$(date +%F).tar.gz.gpg"
-  du -sh "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}"
-  find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f | wc -l | xargs echo "  файлов:"
+  du -sh "$SRC"
+  find "$SRC" -type f | wc -l | xargs echo "  файлов:"
   echo "backup-voice-notes: dry-run — используй --apply"
   exit 0
 fi
@@ -145,7 +126,7 @@ ARC="$DEST/voice-notes-$(date +%F).tar.gz.gpg"
 # gpg: на диске такой архив неотличим от здорового, а восстанавливать из него
 # нечего. Прежняя проверка `n_arc < n_src` пропускала это как 0 < 0 — ровно тот
 # зеркальный отказ, который приёмка и искала.
-N_SRC=$(find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f | wc -l)
+N_SRC=$(find "$SRC" -type f | wc -l)
 (( N_SRC > 0 )) || die "в источнике $SRC ноль файлов — бэкапировать нечего"
 
 # ponytail: tar пишет пути без ведущего /, восстановление — `tar xzf - -C /`.
@@ -154,7 +135,7 @@ N_SRC=$(find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f | wc -l)
 # отчитывался успехом по архиву предыдущего прогона за то же число.
 TMP_ARC="$ARC.part.$$"
 trap 'rm -f "$TMP_ARC"' EXIT
-tar czf - --absolute-names --warning=no-file-changed "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" 2>/dev/null | gpg_enc "$TMP_ARC"
+tar czf - --absolute-names --warning=no-file-changed "$SRC" 2>/dev/null | gpg_enc "$TMP_ARC"
 PIPE_RC=("${PIPESTATUS[@]}")
 [[ -s "$TMP_ARC" ]] || die "архив не создался (tar rc=${PIPE_RC[0]}, gpg rc=${PIPE_RC[1]})"
 mv -f "$TMP_ARC" "$ARC"
