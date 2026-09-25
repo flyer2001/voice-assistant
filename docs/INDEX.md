@@ -22,6 +22,8 @@
 - [Станция как устройство ввода](alice-skill-input.md) — ресёрч навыка Алисы:
   почему таймаут 4.5 с нам не мешает, что уже готово, чего не заменяет
 - [mac-home setup](mac-home-setup.md) — dev-окружение клиента на mac-home
+- [Бэкап конспектов](backup-voice-notes.md) — gpg-архив `/srv/voice-private`
+  ночью, офсайт на WebDAV через канал agentops; почему не git
 
 ## Phase 7 — MCU wearable (не стартовало, блокер — гарнитура)
 
