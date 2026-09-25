@@ -13,6 +13,17 @@ async callback + TTS dual channel (2026-07-05), Phase 6 focus routing
 
 ---
 
+## Ждём внешнего ответа
+
+- [~] **Приёмка офсайт-бэкапа конспектов у agentops** — задача отдана
+      2026-09-25 инжектом, handoff
+      `agentops/.claude/handoff/offsite-acceptance-voice-notes-2026-09-25.md`.
+      От них: требования (RPO, поколения, алерт), доказанное восстановление
+      с WebDAV побайтно, регресс всего канала (квоты, ретенция, обрыв).
+      Известная дыра на нашей стороне: у `scripts/backup-voice-notes.sh` нет
+      тревоги при провале — ждём их решения, чинить по их правилам.
+      Done-signal: inject `[offsite acceptance]` в этот cwd
+
 ## voice-agent-mac — доводка после E2E green
 
 Loop работает: mic → mlx-whisper local → VDS → inject в Claude-сессию →
