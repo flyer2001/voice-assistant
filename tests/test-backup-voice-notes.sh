@@ -98,5 +98,36 @@ KEEP_OVERRIDE=3 run --apply >/dev/null
 N=$(ls -1 "$TMP/dest"/voice-notes-*.tar.gz.gpg | wc -l)
 [ "$N" = 3 ] && ok "осталось 3" || bad "ретенция" "осталось $N"
 
+# --- режим --corpus (добавлено 29.09): корпус СТАТИЧЕН, поэтому главный отказ
+# здесь другой — пересобирать архив на неизменном составе и гонять его в офсайт
+# каждую ночь. Мутация вверх: второй прогон обязан промолчать и ничего не создать.
+echo "case: --corpus создаёт архив и не пересоздаёт его на неизменном составе"
+# фикстура повторяет РЕАЛЬНУЮ раскладку: скрипт ищет корпуса по путям внутри
+# репозитория, и часть из них может отсутствовать — это не отказ
+mkdir -p "$TMP/corpus/bench/podlodka/transcripts" "$TMP/corpus/bench/results"
+printf 'расшифровка\n' > "$TMP/corpus/bench/podlodka/transcripts/talk.md"
+printf 'производное\n' > "$TMP/corpus/bench/podlodka/transcripts/talk.wav"
+printf 'замер\n' > "$TMP/corpus/bench/results/wer.json"
+: > "$NOTIFY_LOG"
+corpus() { VOICE_NOTES_SRC="$TMP/corpus" VOICE_NOTES_DEST="$TMP/dest" \
+           VOICE_REPO="$TMP/corpus" CONFIG_BACKUP_PASSFILE="$TMP/pass" \
+           VOICE_NOTES_NOTIFY="$TMP/fake-notify.sh" bash "$BIN" --corpus "$@" 2>&1; }
+OUT=$(corpus --apply --verify); RC=$?
+CARC=$(ls "$TMP/dest"/voice-corpus-*.tar.gz.gpg 2>/dev/null | head -1)
+[ "$RC" = 0 ] && [ -s "$CARC" ] && ok "архив корпуса создан" || bad "корпус" "rc=$RC: $OUT"
+# wav обязан быть исключён: он воспроизводится из mp3, место в офсайте не тратим
+LIST=$(gpg --batch --quiet --decrypt --passphrase-file "$TMP/pass" "$CARC" 2>/dev/null | tar tzf - 2>/dev/null)
+printf '%s' "$LIST" | grep -q '\.wav$' && bad "wav попал в архив" "$LIST" || ok "wav исключён"
+OUT2=$(corpus --apply --verify); RC2=$?
+N2=$(ls -1 "$TMP/dest"/voice-corpus-*.tar.gz.gpg | wc -l)
+[ "$RC2" = 0 ] && [ "$N2" = 1 ] && ok "второй прогон ничего не создал" \
+  || bad "идемпотентность" "rc=$RC2, архивов $N2: $OUT2"
+printf 'ещё одна\n' > "$TMP/corpus/bench/podlodka/transcripts/talk2.md"
+corpus --apply >/dev/null
+printf '%s' "$(ls -1 "$TMP/dest"/voice-corpus-*.tar.gz.gpg | wc -l)" | grep -q '^1$' \
+  && ok "после правки состава архив пересобран (то же имя за сутки)" \
+  || bad "пересборка" "архивов $(ls -1 "$TMP/dest"/voice-corpus-*.tar.gz.gpg | wc -l)"
+[ -s "$NOTIFY_LOG" ] && bad "закричал на здоровом корпусе" "$(cat "$NOTIFY_LOG")" || ok "тревог нет"
+
 echo "── $PASS ok, $FAIL fail"
 [ "$FAIL" -eq 0 ]

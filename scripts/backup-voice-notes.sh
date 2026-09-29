@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # backup-voice-notes.sh — шифрованный бэкап конспектов созвонов.
-# version: 3.0.2
-# bumped: 2026-09-25
-# bumped_reason: patch — вычищены оставшиеся упоминания недельного офсайта
+# version: 3.1.0
+# bumped: 2026-09-29
+# bumped_reason: minor — режим `--corpus`: отдельное семейство архивов
+#   voice-corpus-* для СТАТИЧНЫХ корпусов (замеры, расшифровки конференций).
+#   Ритм не по календарю, а ПО ИЗМЕНЕНИЮ: считаем манифест состава и не
+#   создаём архив, если он совпал с прошлым. Иначе ежедневная полная копия
+#   неменяющегося mp3 растила бы офсайт на гигабайт (арифметика agentops).
+# prev: 3.0.2 (2026-09-25) — patch — вычищены оставшиеся упоминания недельного офсайта
 #   (канал суточный с 25.09); комментарий про удалённую ретенцию устарел: offsite-webdav
 #   3.0.0 теперь чистит и voice-notes-*, политика у него, у нас только локальная
 # prev: 3.0.0 (2026-09-25) — behavior change — добавлен второй источник: /srv/voice-out/accuracy
@@ -31,11 +36,13 @@
 # Фраза — тот же секрет bws `config_backup_passphrase`, что у backup-configs.sh:
 # один пароль на восстановление вместо второго, который забудется.
 #
-# Usage: backup-voice-notes.sh [--apply] [--verify] [--verify-file <arc>]
+# Usage: backup-voice-notes.sh [--apply] [--verify] [--verify-file <arc>] [--corpus]
 #   без --apply — DRY-RUN: печатает, что заархивировал бы
 #   --verify    — после создания расшифровать и сверить число файлов
 #   --verify-file <arc> — проверить готовый архив (например скачанный с офсайта),
 #                 ничего не создавая
+#   --corpus    — вместо конспектов пакует статичные корпуса в voice-corpus-*;
+#                 при неизменном составе НЕ создаёт архив и выходит с 0
 #
 # Восстановление:
 #   gpg -d voice-notes-YYYY-MM-DD.tar.gz.gpg | tar xzf - -C /
@@ -63,6 +70,17 @@ fi
 # configs-* в agentops была дыра 02.09-09.09 при KEEP=5.
 KEEP="${VOICE_NOTES_KEEP:-8}"
 
+# Корпуса: неповторимое, что нельзя перекачать. Аудио и wav сюда НЕ входят —
+# они воспроизводятся из уцелевшего (mp3 через yt-dlp, wav из mp3), и ровно
+# это различение позволило снести 7 ГБ с диска, не потеряв данных.
+REPO="${VOICE_REPO:-/root/projects/voice}"
+CORPUS_SRCS=(
+  "$REPO/bench/podlodka/transcripts"
+  "$REPO/bench/podlodka/2026-09"
+  "$REPO/bench/results"
+  "$REPO/assets/long-form-bench"
+)
+
 # Тревога. Её не было вовсе — дыра, названная нами же при сдаче на приёмку:
 # «крон молча пишет в лог, и лог никто не читает». Уровень notify (текст в ВК),
 # не act: пропущенный бэкап конспектов — не пожар, но узнать о нём надо в тот
@@ -74,21 +92,36 @@ die() {  # die <сообщение> [код]
   exit "${2:-2}"
 }
 
-APPLY=0 VERIFY=0 VERIFY_FILE=
+APPLY=0 VERIFY=0 VERIFY_FILE= CORPUS=0
 while (($#)); do
   case "$1" in
     --apply)  APPLY=1;  shift ;;
     --verify) VERIFY=1; shift ;;
     --verify-file) VERIFY_FILE="${2:-}"; shift 2 ;;
+    --corpus) CORPUS=1; shift ;;
     -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "backup-voice-notes: unknown arg '$1'" >&2; exit 2 ;;
   esac
 done
 
+PREFIX=voice-notes
+if (( CORPUS )); then
+  PREFIX=voice-corpus
+  # 💣 Отсутствующий путь корпуса — НЕ отказ: после чистки диска или переноса
+  # каталога ночной прогон начал бы кричать вместо работы. Пропускаем чего нет,
+  # падаем только если не осталось НИ ОДНОГО источника (вот это уже отказ:
+  # молча делать пустой архив мы не имеем права, см. проверку N_SRC ниже).
+  PRESENT=()
+  for d in "${CORPUS_SRCS[@]}"; do [[ -e "$d" ]] && PRESENT+=("$d"); done
+  (( ${#PRESENT[@]} )) || die "ни одного источника корпуса не найдено: ${CORPUS_SRCS[*]}"
+  SRC="${PRESENT[0]}"
+  EXTRA=("${PRESENT[@]:1}")
+fi
+
 [[ -n "$VERIFY_FILE" ]] || [[ -d "$SRC" ]] || die "нет источника $SRC" 
 
 if (( ! APPLY )) && [[ -z "$VERIFY_FILE" ]]; then
-  echo "[dry-run] $SRC → $DEST/voice-notes-$(date +%F).tar.gz.gpg"
+  echo "[dry-run] $SRC → $DEST/$PREFIX-$(date +%F).tar.gz.gpg"
   du -sh "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}"
   find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f | wc -l | xargs echo "  файлов:"
   echo "backup-voice-notes: dry-run — используй --apply"
@@ -143,14 +176,28 @@ if [[ -n "$VERIFY_FILE" ]]; then
 fi
 
 mkdir -p "$DEST"; chmod 700 "$DEST"
-ARC="$DEST/voice-notes-$(date +%F).tar.gz.gpg"
+ARC="$DEST/$PREFIX-$(date +%F).tar.gz.gpg"
 
 # 💣 ПУСТОЙ ИСТОЧНИК — НЕ УСПЕХ. Пустой каталог даёт валидный tar.gz и валидный
 # gpg: на диске такой архив неотличим от здорового, а восстанавливать из него
 # нечего. Прежняя проверка `n_arc < n_src` пропускала это как 0 < 0 — ровно тот
 # зеркальный отказ, который приёмка и искала.
-N_SRC=$(find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f | wc -l)
+N_SRC=$(find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f ! -name '*.wav' | wc -l)
 (( N_SRC > 0 )) || die "в источнике $SRC ноль файлов — бэкапировать нечего"
+
+# Корпус статичен: пересобирать архив каждую ночь — значит заливать в офсайт
+# новую полную копию того же mp3. Поэтому сверяем МАНИФЕСТ состава (путь,
+# размер, mtime) и при совпадении не создаём ничего. Сам gpg сравнивать
+# нельзя: у каждого шифрования свой сеансовый ключ, файлы всегда разные.
+MANI="$DEST/$PREFIX.manifest.sha256"
+if (( CORPUS )); then
+  NOW=$(find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f ! -name '*.wav' -printf '%p %s %T@\n' \
+        | sort | sha256sum | cut -d" " -f1)
+  if [[ -f "$MANI" && "$(cat "$MANI")" == "$NOW" ]]; then
+    echo "backup-voice-notes --corpus: состав не менялся, архив не создаю"
+    exit 0
+  fi
+fi
 
 # ponytail: tar пишет пути без ведущего /, восстановление — `tar xzf - -C /`.
 # 💣 Пишем в ВРЕМЕННЫЙ файл и только потом переносим. Иначе `-s "$ARC"` не
@@ -158,11 +205,13 @@ N_SRC=$(find "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" -type f | wc -l)
 # отчитывался успехом по архиву предыдущего прогона за то же число.
 TMP_ARC="$ARC.part.$$"
 trap 'rm -f "$TMP_ARC"' EXIT
-tar czf - --absolute-names --warning=no-file-changed "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" 2>/dev/null | gpg_enc "$TMP_ARC"
+tar czf - --absolute-names --warning=no-file-changed --exclude='*.wav' \
+    "$SRC" "${EXTRA[@]+"${EXTRA[@]}"}" 2>/dev/null | gpg_enc "$TMP_ARC"
 PIPE_RC=("${PIPESTATUS[@]}")
 [[ -s "$TMP_ARC" ]] || die "архив не создался (tar rc=${PIPE_RC[0]}, gpg rc=${PIPE_RC[1]})"
 mv -f "$TMP_ARC" "$ARC"
 chmod 600 "$ARC"
+(( CORPUS )) && { printf '%s' "$NOW" > "$MANI"; chmod 600 "$MANI"; }
 
 if (( VERIFY )); then
   # Проверка не «файл есть», а «файл читается обратно»: битый gpg или пустой
@@ -180,7 +229,7 @@ fi
 # месяца» здесь заводить НЕ надо — будет два хозяина у одной политики.
 # KEEP=8 при ежедневном офсайте — ремень: если офсайт снова станет недельным,
 # ни один день не выпадет.
-mapfile -t OLD < <(ls -1t "$DEST"/voice-notes-*.tar.gz.gpg 2>/dev/null | tail -n +$((KEEP + 1)))
+mapfile -t OLD < <(ls -1t "$DEST"/$PREFIX-*.tar.gz.gpg 2>/dev/null | tail -n +$((KEEP + 1)))
 ((${#OLD[@]})) && rm -f "${OLD[@]}"
 
 echo "backup-voice-notes: $(du -h "$ARC" | cut -f1) → $ARC (локально храним $KEEP)"
