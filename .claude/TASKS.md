@@ -54,9 +54,17 @@ Yandex TTS → mac speaker.
 
 ## mac-home — окружение
 
-- [ ] `sudo pmset -a sleep 0 disksleep 0 tcpkeepalive 1` — на 2026-08-01
-      sleep=20, tcpkeepalive=0. Только Sergey: sudo на маке требует пароль,
-      беспарольного нет
+- [ ] **Решить, должен ли mac-home бодрствовать** (иначе «позвать голосом»
+      работает через раз: mp3 доставляется по scp, спящий мак его не получает).
+      На 30.09 `sleep=20`, `tcpkeepalive=0`. Два варианта, выбор за Sergey:
+      оставить как есть (спит → обёртка пишет «недоступен», поднять `/macup`
+      за ~12 с) либо `sudo pmset -a sleep 0 disksleep 0` — пароль на маке
+      только у него, беспарольного sudo нет.
+      ⚠️ **`tcpkeepalive 1` НЕ ставить.** Sergey выключил его 17.06 намеренно:
+      Thunderbolt-адаптер RTL8156 с багом «Wake-On-Link-Up» будил мак без
+      причины, и отключение keep-alive это вылечило (проверено 30 мин чистого
+      сна), прошить адаптер нечем. При `sleep 0` keep-alive и не нужен — не
+      спит, значит адаптеру нечего будить. Контекст — `~/.claude/docs/home-machines.md`
 - [!] Mount voice-repo через sshfs — blocked: нужен macFUSE (системное
       расширение → пароль + разрешение в System Settings + reboot). Только
       Sergey. Альтернатива без блокера — отдельный `git clone` на маке
