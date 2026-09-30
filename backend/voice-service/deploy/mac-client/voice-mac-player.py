@@ -1,160 +1,93 @@
 #!/usr/bin/env python3
-"""Проигрывает на mac-home ответы, которые VDS кладёт в /srv/voice-out/.
+"""Проигрывает на маке ответы, которые VDS кладёт в локальный inbox.
 
 Зачем отдельный демон, а не ssh + afplay: из ssh-сессии CoreAudio недоступен
 (`AudioQueueStart failed -66681`), а `launchctl asuser` упирается в
 заблокированный экран. Работает только процесс, живущий внутри графической
 сессии — отсюда LaunchAgent.
 
-Опрашивает листинг Caddy, берёт новые файлы своего client_id и играет.
-При старте ставит отметку на текущий момент, чтобы не проигрывать архив.
+💣 До 2026-09-30 демон опрашивал ЛИСТИНГ каталога по HTTP. 23.09 листинг
+выключили в Caddy ради приватности («имена файлов предсказуемы по датам») — и
+звук умер МОЛЧА: 124 тысячи строк `ошибка опроса ... 404` в логе, но никто не
+смотрит лог плеера, пока ждёт голос. Возвращать листинг нельзя, а гадать имена
+файлов плеер не может.
 
-    ./voice-mac-player.py                  # client_id по умолчанию mac-home
-    VOICE_CLIENT_ID=phone ./voice-mac-player.py
+Поэтому доставка перевёрнута: VDS сам кладёт mp3 в `~/.voice-agent-mac/inbox/`
+по scp (`voice-mac-reply-both`), демон играет и удаляет. Ни листинга, ни
+токенов, ни сети в плеере — значит и нечему отдавать 404. Побочно исчез опрос
+раз в две секунды.
+
+Если мак спал в момент ответа — scp не дошёл, файла нет, и это правильно:
+голосовое уведомление ценно в момент действия, проигрывать его через час хуже,
+чем не проигрывать.
+
+    ./voice-mac-player.py
+    VOICE_INBOX=~/some/dir ./voice-mac-player.py
 """
-import json
 import os
-import socket
 import subprocess
 import sys
 import time
-import urllib.request
 
-BASE = os.environ.get("VOICE_OUT_URL", "https://cashflow-game.ru/voice-out/")
-CLIENT_ID = os.environ.get("VOICE_CLIENT_ID", "mac-home")
-POLL_S = float(os.environ.get("VOICE_POLL_S", "2"))
-STATE = os.path.expanduser("~/.voice-agent-mac/player-watermark.txt")
+INBOX = os.path.expanduser(os.environ.get("VOICE_INBOX", "~/.voice-agent-mac/inbox"))
+POLL_S = float(os.environ.get("VOICE_POLL_S", "1"))
 
 
 def log(msg):
     print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
 
 
-# Резолвер внутри LaunchAgent отвечает через раз: сам DNS исправен (dig и
-# dscacheutil отдают адрес мгновенно, роутер пингуется за 0.7 мс), но
-# getaddrinfo в этом контексте регулярно возвращает "nodename nor servname".
-# Кэшируем удачный ответ и переиспользуем — имя в URL остаётся прежним, так
-# что SNI и проверка сертификата не ломаются.
-_dns_cache = {}
-_real_getaddrinfo = socket.getaddrinfo
+def ready_files():
+    """Готовые к проигрыванию mp3, в порядке имён (имена — timestamp'ы).
 
-
-def _cached_getaddrinfo(host, port, *args, **kwargs):
-    key = (host, port)
-    try:
-        res = _real_getaddrinfo(host, port, *args, **kwargs)
-        _dns_cache[key] = res
-        return res
-    except socket.gaierror:
-        if key in _dns_cache:
-            return _dns_cache[key]
-        raise
-
-
-socket.getaddrinfo = _cached_getaddrinfo
-
-
-def listing():
-    # Caddy отдаёт каталог как HTML и переключается на JSON только по этому
-    # заголовку. Без него прилетает страница и парсер падает на первой строке.
-    req = urllib.request.Request(BASE, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read().decode())
-
-
-def fetch(url):
-    with urllib.request.urlopen(url, timeout=30) as r:
-        return r.read()
-
-
-def entries_for_me(items):
-    """(ts, json_name) наших записей, отсортированы по времени."""
+    Файл в процессе передачи scp уже видно в каталоге, поэтому играть его
+    нельзя: afplay получит обрезанный поток. Признак завершённости — размер не
+    менялся между двумя опросами; scp пишет непрерывно, пауза в секунду при
+    100 КБ значит, что передача кончилась.
+    """
     out = []
-    for it in items:
-        name = it.get("name", "")
-        if it.get("is_dir") or not name.endswith(".json"):
+    for name in sorted(os.listdir(INBOX)):
+        if not name.endswith(".mp3"):
             continue
-        if not name.startswith(CLIENT_ID + "-"):
+        path = os.path.join(INBOX, name)
+        try:
+            size = os.path.getsize(path)
+        except OSError:
             continue
-        ts = name[len(CLIENT_ID) + 1:-len(".json")]
-        out.append((ts, name))
-    out.sort()
+        if size == 0:
+            continue
+        prev = _sizes.get(path)
+        _sizes[path] = size
+        if prev == size:
+            out.append(path)
     return out
 
 
-def read_watermark():
+_sizes = {}
+
+
+def play(path):
+    size = os.path.getsize(path)
+    log(f"играю {os.path.basename(path)} ({size}B)")
+    subprocess.run(["/usr/bin/afplay", path], check=False)
     try:
-        return open(STATE).read().strip()
-    except Exception:
-        return ""
-
-
-def write_watermark(ts):
-    os.makedirs(os.path.dirname(STATE), exist_ok=True)
-    tmp = STATE + ".tmp"
-    with open(tmp, "w") as fh:
-        fh.write(ts)
-    os.replace(tmp, STATE)
-
-
-def play(meta_name):
-    meta = json.loads(fetch(BASE + meta_name).decode())
-    audio_url = meta.get("audio_url")
-    if not audio_url:
-        log(f"нет audio_url в {meta_name}, пропускаю")
-        return
-    # audio_url приходит абсолютным путём вида /voice-out/xxx.mp3
-    url = BASE.rstrip("/").rsplit("/voice-out", 1)[0] + audio_url
-    data = fetch(url)
-    tmp = f"/tmp/voice-mac-play-{os.getpid()}.mp3"
-    with open(tmp, "wb") as fh:
-        fh.write(data)
-    text = (meta.get("text") or "")[:60]
-    log(f"играю {len(data)}B | {text}")
-    subprocess.run(["/usr/bin/afplay", tmp], check=False)
-    try:
-        os.unlink(tmp)
+        os.unlink(path)
     except OSError:
         pass
+    _sizes.pop(path, None)
 
 
 def main():
-    log(f"старт: client_id={CLIENT_ID} url={BASE}")
-
-    # Отметка при первом запуске — самый свежий файл на сервере. Иначе демон
-    # проиграл бы весь архив ответов подряд.
-    mark = read_watermark()
-    if not mark:
-        try:
-            items = entries_for_me(listing())
-            mark = items[-1][0] if items else ""
-        except Exception as e:
-            log(f"не смог прочитать листинг на старте: {e}")
-            mark = ""
-        write_watermark(mark)
-        log(f"отметка выставлена на {mark or '(пусто)'}")
-
-    misses = 0
+    os.makedirs(INBOX, exist_ok=True)
+    log(f"старт: inbox={INBOX}")
     while True:
         try:
-            for ts, name in entries_for_me(listing()):
-                if ts <= mark:
-                    continue
-                play(name)
-                mark = ts
-                write_watermark(mark)
-            misses = 0
+            for path in ready_files():
+                play(path)
         except Exception as e:
-            # Сеть моргнула или VDS перезапускается — не падаем.
-            # Домашний резолвер (MikroTik) залипает кластерами: в первом же
-            # прогоне 13 ошибок из 28 строк лога, и ответ уезжал на 8 секунд,
-            # потому что после каждой ошибки ждали полный интервал. Теперь
-            # первые попытки повторяем почти сразу, и только если не отпускает
-            # надолго — переходим на обычный интервал, чтобы не долбить сеть.
-            misses += 1
-            log(f"ошибка опроса ({misses}): {e}")
-            time.sleep(0.3 if misses <= 10 else POLL_S)
-            continue
+            # Демон не имеет права умирать: его подъём требует графической
+            # сессии, то есть человека за компьютером.
+            log(f"ошибка: {e}")
         time.sleep(POLL_S)
 
 

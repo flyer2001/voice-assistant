@@ -20,12 +20,17 @@ VENV="${VENV:-$HOME/.venvs/voice-agent}"
 BIN="${BIN:-$HOME/bin}"
 LABEL="com.flyer2001.voice-mac-player"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+# CLIENT_ID плееру больше НЕ нужен: с 30.09 доставка идёт пушем (VDS кладёт mp3
+# в inbox по scp), а не опросом каталога, и фильтровать чужие файлы не надо —
+# в свой inbox попадает только своё. Переменную оставляем ради install.sh,
+# который зовёт этот скрипт со старым окружением.
 CLIENT_ID="${VOICE_CLIENT_ID:-mac-home}"
 
 PY="$VENV/bin/python"
 [ -x "$PY" ] || PY="/usr/bin/python3"   # плееру хватает стандартной библиотеки
 
-mkdir -p "$BIN" "$HOME/Library/LaunchAgents" "$HOME/.voice-agent-mac"
+mkdir -p "$BIN" "$HOME/Library/LaunchAgents" "$HOME/.voice-agent-mac" \
+         "$HOME/.voice-agent-mac/inbox"
 install -m 755 "$HERE/voice-mac-player.py" "$BIN/voice-mac-player.py"
 
 cat > "$PLIST" <<EOF
@@ -40,11 +45,6 @@ cat > "$PLIST" <<EOF
         <string>$PY</string>
         <string>$BIN/voice-mac-player.py</string>
     </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>VOICE_CLIENT_ID</key>
-        <string>$CLIENT_ID</string>
-    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

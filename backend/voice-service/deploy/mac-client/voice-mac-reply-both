@@ -36,4 +36,21 @@ jq -n --arg cid "$CID" --arg text "$TEXT" --arg ts "$TS" --arg audio "/voice-out
   '{client_id:$cid, text:$text, ts:$ts, audio_url:$audio, voice:$voice, audio_size:$size}' > "$JSON"
 
 chmod 644 "$MP3" "$JSON"
-echo "wrote $JSON ($SIZE B mp3)"
+
+# Доставка ПУШЕМ, а не опросом. 23.09 в Caddy выключили листинг каталога ради
+# приватности, и плеер, который опрашивал именно листинг, замолчал на неделю:
+# 404 в его лог, тишина в наушниках. Возвращать листинг нельзя, гадать имена
+# плеер не может — поэтому mp3 кладём на мак сами.
+# CID совпадает с ssh-алиасом (mac-home / mac-work), это и есть адрес доставки.
+# Мак спит — scp не дойдёт, и это правильный исход: голос ценен в момент
+# действия, через час он только мешает.
+INBOX='~/.voice-agent-mac/inbox'
+if ssh -o ConnectTimeout=5 -o BatchMode=yes "$CID" "mkdir -p $INBOX" 2>/dev/null; then
+  if scp -o ConnectTimeout=5 -o BatchMode=yes -q "$MP3" "$CID:$INBOX/" 2>/dev/null; then
+    echo "wrote $JSON ($SIZE B mp3), доставлено на $CID"
+  else
+    echo "wrote $JSON ($SIZE B mp3), НО scp на $CID не прошёл — звука не будет" >&2
+  fi
+else
+  echo "wrote $JSON ($SIZE B mp3), НО $CID недоступен (спит?) — звука не будет" >&2
+fi
