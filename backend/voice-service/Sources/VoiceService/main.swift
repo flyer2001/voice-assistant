@@ -200,11 +200,26 @@ let aliceConfig: AliceConfig? = {
     let readAnswerFile = answerFile.deletingPathExtension()
         .appendingPathExtension("read")
         .appendingPathExtension(answerFile.pathExtension)
+    // Отметка времени последнего вопроса. Сравнение с датой ответа отличает
+    // «ответ ещё готовится» от «нового ответа не будет» — на слух это разные
+    // вещи, и без различия человек решает, что канал сломан.
+    let questionMark = answerFile.deletingLastPathComponent()
+        .appendingPathComponent("alice-last-question")
+
+    /// Дата изменения файла или далёкое прошлое, если файла нет.
+    /// `@Sendable`: вызывается из замыкания, которое уходит в другой поток.
+    let mtime: @Sendable (URL) -> Date = { url in
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
+            .flatMap { $0 } ?? .distantPast
+    }
 
     return AliceConfig(
         pathSecret: secret,
         skillId: env["ALICE_SKILL_ID"],
         inject: { text in
+            // Вопрос задан — помечаем время, чтобы «дай ответ» до готовности
+            // отвечал «готовится», а не повтором прошлого.
+            try? Data().write(to: questionMark)
             let (cwd, source) = resolveFocusTarget(defaultCwd)
             // ALICE_TARGET_SID адресует конкретную сессию. Нужно, когда в
             // каталоге несколько живых сессий: выбор по cwd берёт самую свежую,
@@ -257,14 +272,17 @@ let aliceConfig: AliceConfig? = {
                 ])
                 return AliceAnswer(text: text, isRepeat: false)
             }
+            // Вопрос новее последнего ответа — значит ответ в работе.
+            let pending = mtime(questionMark) > mtime(readAnswerFile)
             if let text = read(readAnswerFile) {
-                logger.info("ответ озвучен повторно", metadata: [
-                    "chars": .stringConvertible(text.count)
-                ])
-                return AliceAnswer(text: text, isRepeat: true)
+                logger.info(pending ? "ответ готовится, отдан прошлый"
+                                    : "ответ озвучен повторно",
+                            metadata: ["chars": .stringConvertible(text.count)])
+                return AliceAnswer(text: text, isRepeat: true, isPending: pending)
             }
-            logger.info("ящик ответа пуст", metadata: ["file": .string(answerFile.path)])
-            return nil
+            logger.info(pending ? "ответ готовится, прошлого нет" : "ящик ответа пуст",
+                        metadata: ["file": .string(answerFile.path)])
+            return pending ? AliceAnswer(text: "", isRepeat: false, isPending: true) : nil
         }
     )
 }()

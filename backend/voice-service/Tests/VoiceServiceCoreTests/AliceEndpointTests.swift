@@ -128,7 +128,7 @@ struct AliceEndpointTests {
         func take() -> AliceAnswer? {
             guard let text else { return nil }
             lock.lock(); defer { lock.unlock() }
-            let answer = AliceAnswer(text: text, isRepeat: delivered)
+            let answer = AliceAnswer(text: text, isRepeat: delivered, isPending: false)
             delivered = true
             return answer
         }

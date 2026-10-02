@@ -46,11 +46,23 @@ struct AliceHandlerTests {
         // Живой случай 2026-10-02: Алиса прислала команду целиком, вместе с
         // «попроси личного ассистента». Матчер по началу строки её не узнал.
         for phrase in ["попроси личного ассистента дать ответ",
+                       "скажи личному ассистенту дай ответ",
+                       "передай ассистенту дай ответ",
                        "личный ассистент дай ответ",
                        "ассистента дай ответ",
                        "дать ответ"] {
             #expect(AliceHandler.decide(req(command: phrase)) == .answerRequest,
                     "«\(phrase)» должно читаться как запрос ответа")
+        }
+    }
+
+    @Test("реплика из одних служебных слов не инжектится")
+    func activationNoiseOnly() {
+        // Живой случай: Sergey сказал «Алиса», запнулся, пауза обрубила фразу —
+        // и в сессию уехало слово «алиса» как мысль.
+        for phrase in ["алиса", "Алиса, попроси", "личного ассистента"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .empty,
+                    "«\(phrase)» — ничего не сказано, инжектить нечего")
         }
     }
 
@@ -68,7 +80,7 @@ struct AliceHandlerTests {
     @Test("ответ из ящика озвучивается, пустой ящик — так и говорим")
     func answerReplyRendering() {
         let withText = AliceHandler.answerReply(
-            AliceAnswer(text: "horse genital diagnostics", isRepeat: false))
+            AliceAnswer(text: "horse genital diagnostics", isRepeat: false, isPending: false))
         #expect(withText.response.text == "horse genital diagnostics")
         #expect(withText.response.tts == "horse genital diagnostics")
         #expect(withText.response.end_session == false)
@@ -78,13 +90,31 @@ struct AliceHandlerTests {
         #expect(empty.response.end_session == false)
     }
 
+    @Test("вопрос новее ответа — говорим, что ответ готовится")
+    func answerReplyPending() {
+        // Живая путаница 2026-10-02: «повторяю ответ» звучало и когда ответ
+        // ещё в работе, и когда нового не будет вовсе. Человек эти случаи не
+        // различал и решил, что канал сломан.
+        let pendingWithOld = AliceHandler.answerReply(
+            AliceAnswer(text: "старый ответ", isRepeat: true, isPending: true))
+        #expect(pendingWithOld.response.text.contains("готовится"))
+        #expect(pendingWithOld.response.text.contains("старый ответ"),
+                "прошлый ответ всё равно отдаём — вдруг человек его и ждал")
+
+        let pendingEmpty = AliceHandler.answerReply(
+            AliceAnswer(text: "", isRepeat: false, isPending: true))
+        #expect(pendingEmpty.response.text.contains("готовится"))
+        #expect(!pendingEmpty.response.text.contains("пока нет"),
+                "«ответа нет» и «ответ готовится» — разные вещи")
+    }
+
     @Test("повторный запрос того же ответа предупреждает, что это повтор")
     func answerReplyRepeat() {
         // Ящик не одноразовый: человек мог не расслышать. Но повтор обязан
         // звучать как повтор, иначе старый ответ сойдёт за ответ на новый
         // вопрос.
         let again = AliceHandler.answerReply(
-            AliceAnswer(text: "horse genital diagnostics", isRepeat: true))
+            AliceAnswer(text: "horse genital diagnostics", isRepeat: true, isPending: false))
         #expect(again.response.text.hasPrefix("Повторяю ответ:"))
         #expect(again.response.text.contains("horse genital diagnostics"))
         #expect(again.response.tts?.hasPrefix("Повторяю ответ:") == true)

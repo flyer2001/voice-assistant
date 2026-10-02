@@ -58,10 +58,15 @@ public struct AliceResponse: Encodable, Sendable {
 public struct AliceAnswer: Sendable, Equatable {
     public let text: String
     public let isRepeat: Bool
+    /// Есть вопрос новее этого ответа — значит ответ ещё готовится.
+    /// Без этого признака «повторяю ответ» звучало и когда ответ в работе, и
+    /// когда нового не будет вовсе, а человек эти случаи не различал.
+    public let isPending: Bool
 
-    public init(text: String, isRepeat: Bool) {
+    public init(text: String, isRepeat: Bool, isPending: Bool = false) {
         self.text = text
         self.isRepeat = isRepeat
+        self.isPending = isPending
     }
 }
 
@@ -92,6 +97,16 @@ public enum AliceHandler {
         if isAnswerRequest(text) {
             return .answerRequest
         }
+        // Реплика из одних служебных слов — человек запнулся, и пауза обрубила
+        // фразу. Инжектить «алиса» как мысль нельзя.
+        let meaningful = stripActivation(
+            text.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+        )
+        if meaningful.isEmpty {
+            return .empty
+        }
         return .accepted(text)
     }
 
@@ -100,20 +115,32 @@ public enum AliceHandler {
     /// Нарочно узкий список: слово «ответ» само по себе встречается в обычных
     /// репликах («запиши мысль про ответы сервиса»), и такую диктовку нельзя
     /// принимать за просьбу прочитать ящик.
+    /// Слова, которыми начинается обращение к навыку. Алиса иногда отдаёт их
+    /// внутри `command` («скажи личному ассистенту дай ответ», живые случаи
+    /// 2026-10-02), и без их снятия просьба не узнаётся.
+    static let activationWords: Set<String> = [
+        "алиса", "попроси", "попросить", "спроси", "спросить", "скажи",
+        "скажите", "передай", "передать", "у", "мой", "моего", "моему"
+    ]
+
+    /// Срезает служебное начало реплики. Падежи «личный/личного/личному» и
+    /// «ассистент/ассистента/ассистенту» ловим по основе, а не списком.
+    static func stripActivation(_ words: [String]) -> [String] {
+        var rest = words
+        while let first = rest.first,
+              activationWords.contains(first)
+                || first.hasPrefix("личн")
+                || first.hasPrefix("ассистент") {
+            rest.removeFirst()
+        }
+        return rest
+    }
+
     static func isAnswerRequest(_ text: String) -> Bool {
-        var words = text.lowercased()
+        let words = text.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
-        // Алиса иногда отдаёт реплику вместе с активационным именем
-        // («попроси личного ассистента дать ответ», живой случай 2026-10-02).
-        // Срезаем служебное начало, иначе просьба не узнаётся.
-        let activation: Set<String> = ["алиса", "попроси", "попросить", "спроси",
-                                       "спросить", "у", "личного", "личный",
-                                       "ассистента", "ассистент", "мой", "моего"]
-        while let first = words.first, activation.contains(first) {
-            words.removeFirst()
-        }
-        let normalized = words.joined(separator: " ")
+        let normalized = stripActivation(words).joined(separator: " ")
         if normalized == "ответ" { return true }
         for form in ["дай ответ", "дать ответ", "дай ответа", "прочитай ответ",
                      "прочти ответ", "какой ответ", "твой ответ", "скажи ответ",
@@ -125,15 +152,25 @@ public enum AliceHandler {
 
     /// Ответ на «дай ответ»: либо текст из ящика, либо честное «пока нет».
     public static func answerReply(_ answer: AliceAnswer?) -> AliceResponse {
-        guard let answer,
-              case let text = answer.text.trimmingCharacters(in: .whitespacesAndNewlines),
-              !text.isEmpty
-        else {
-            return AliceResponse(text: "Ответа пока нет.", tts: "Ответа пока нет.")
+        let text = (answer?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let pending = answer?.isPending ?? false
+
+        if text.isEmpty {
+            let spoken = pending
+                ? "Ответ ещё готовится. Спроси через полминуты."
+                : "Ответа пока нет."
+            return AliceResponse(text: spoken, tts: spoken)
         }
-        // Повтор обязан звучать как повтор: иначе ответ на прошлый вопрос
-        // сойдёт за ответ на новый, и человек этого не различит.
-        let spoken = answer.isRepeat ? "Повторяю ответ: \(text)" : text
+        // Три разных случая, и человек обязан их различать на слух:
+        // свежий ответ, прошлый ответ пока готовится новый, просто повтор.
+        let spoken: String
+        if pending {
+            spoken = "Ответ ещё готовится. Пока прошлый: \(text)"
+        } else if answer?.isRepeat == true {
+            spoken = "Повторяю ответ: \(text)"
+        } else {
+            spoken = text
+        }
         return AliceResponse(text: spoken, tts: spoken)
     }
 
