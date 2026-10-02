@@ -112,16 +112,43 @@ IDLE=0
 BUF=""
 BUF_FROM=""
 CHUNKS_IN_BUF=0
+PREAMBLE_SENT=""
+# Имя встречи для тега. Было зашито «подлодка» — на дейлике, груминге и 1:1
+# это вводило в заблуждение. Задаётся снаружи, иначе берётся из даты записи.
+MEETING="${VOICE_MEETING:-live}"
+
+# 💣 Правила режима раньше повторялись В КАЖДОМ блоке (четыре строки префикса на
+# пятнадцать секунд речи) — Sergey 02.10: «они избыточны, все правила не нужно
+# повторять каждое сообщение». Теперь правила уходят ОДИН раз преамбулой на
+# запись, а блок несёт только машиночитаемый тег. Имя встречи тоже было зашито
+# («подлодка-live») и врало на любой другой встрече — стало параметром.
+inject_to() {  # inject_to <текст>
+  local TARGET_ARGS
+  if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
+  node "$INJECT" "${TARGET_ARGS[@]}" --message "$1" >/dev/null 2>&1
+}
+
+send_preamble() {  # один раз на запись, не на блок
+  [ -n "$PREAMBLE_SENT" ] && return 0
+  [ -n "$INJECT_SID" ] || [ -n "$INJECT_CWD" ] || return 0
+  inject_to "[voice-live preamble] {\"meeting\":\"$MEETING\",\"file\":\"$BASE\",\"started\":\"$START_HHMMSS\",\"mode\":\"listen\"}
+
+Дальше в эту сессию пойдут блоки живой транскрипции с тегом
+\`[voice-live] {\"meeting\":…,\"from\":…,\"to\":…}\`. Правила режима — один раз, здесь:
+
+- молчаливый приём: блоки не комментировать построчно, держать контекст;
+- сверять с листом ожидания; попадание — запись в questions.md и тихий текст в VK;
+- голосом не отвечать: Sergey в эфире (его фидбек 2026-09-14);
+- распознавание шумит на тишине («Спасибо», «Продолжение следует», перечисления
+  имён) — это галлюцинации, не реплики."
+  PREAMBLE_SENT=1
+}
 
 flush_buffer() {
   [ -z "$BUF" ] && return 0
   if [ -n "$INJECT_SID" ] || [ -n "$INJECT_CWD" ]; then
-    local TARGET_ARGS
-    if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
-    node "$INJECT" "${TARGET_ARGS[@]}" --message "[подлодка-live $BUF_FROM-$1]
-[режим слушателя: молчаливый приём, сверка с листом ожидания.
-Попадание — запись в questions.md + тихий текст в VK. Голосом — никогда:
-Sergey в эфире, врывание в наушники запрещено его фидбеком 2026-09-14.]
+    send_preamble
+    inject_to "[voice-live] {\"meeting\":\"$MEETING\",\"from\":\"$BUF_FROM\",\"to\":\"$1\"}
 
 $BUF" >/dev/null 2>&1       && echo "$(date +%H:%M:%S) инжект блока $BUF_FROM-$1"       || echo "$(date +%H:%M:%S) инжект НЕ дошёл ($BUF_FROM-$1), текст остаётся в файле"
   fi
@@ -192,6 +219,6 @@ while true; do
 done
 flush_buffer "$(printf '%02d:%02d:%02d' $((POS/3600)) $((POS%3600/60)) $((POS%60)))"
 touch "$OUTDIR/.done-$BASE"
-POS=0; IDLE=0
+POS=0; IDLE=0; PREAMBLE_SENT=""   # новая запись — новая преамбула
 echo "$(date +%H:%M:%S) готов к следующей записи"
 done   # дежурный цикл
