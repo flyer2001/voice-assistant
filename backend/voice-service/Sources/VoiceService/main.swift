@@ -205,6 +205,22 @@ let aliceConfig: AliceConfig? = {
     // вещи, и без различия человек решает, что канал сломан.
     let questionMark = answerFile.deletingLastPathComponent()
         .appendingPathComponent("alice-last-question")
+    // Очередь: отдельный файл на сообщение, порядок по имени. Писателей много
+    // и они независимы (разные сессии, cron), поэтому каталог с атомарным
+    // переименованием, а не общий файл и не база: блокировки не нужны.
+    let queueDir = answerFile.deletingLastPathComponent()
+        .appendingPathComponent("alice-outbox")
+    // Прочитанное переезжает сюда, а не удаляется: архив стоит ничего, зато
+    // отматывание назад потом добавляется без переделки хранения.
+    let archiveDir = queueDir.appendingPathComponent("read")
+    try? FileManager.default.createDirectory(at: archiveDir, withIntermediateDirectories: true)
+
+    /// Сообщения очереди по порядку имён: имя начинается с времени записи.
+    let queued: @Sendable () -> [URL] = {
+        let items = (try? FileManager.default.contentsOfDirectory(
+            at: queueDir, includingPropertiesForKeys: nil)) ?? []
+        return items.filter { $0.pathExtension == "txt" }.sorted { $0.path < $1.path }
+    }
 
     /// Дата изменения файла или далёкое прошлое, если файла нет.
     /// `@Sendable`: вызывается из замыкания, которое уходит в другой поток.
@@ -262,6 +278,24 @@ let aliceConfig: AliceConfig? = {
 
             // Свежий ответ всегда побеждает прочитанный: агент, положив новый
             // текст, вытесняет прошлый вместе с пометкой повтора.
+            // Очередь вперёд одиночного ящика: если агенты накидали сообщений,
+            // слушаем их по порядку.
+            let pending_queue = queued()
+            if let first = pending_queue.first, let text = read(first) {
+                try? FileManager.default.removeItem(at: readAnswerFile)
+                try? FileManager.default.copyItem(at: first, to: readAnswerFile)
+                try? FileManager.default.removeItem(
+                    at: archiveDir.appendingPathComponent(first.lastPathComponent))
+                try? FileManager.default.moveItem(
+                    at: first, to: archiveDir.appendingPathComponent(first.lastPathComponent))
+                logger.info("сообщение из очереди озвучено", metadata: [
+                    "file": .string(first.lastPathComponent),
+                    "remaining": .stringConvertible(pending_queue.count - 1)
+                ])
+                return AliceAnswer(text: text, isRepeat: false,
+                                   remaining: pending_queue.count - 1)
+            }
+
             if let text = read(answerFile) {
                 // Переезд в «прочитанное» вместо опустошения: человек мог не
                 // расслышать и попросить снова.

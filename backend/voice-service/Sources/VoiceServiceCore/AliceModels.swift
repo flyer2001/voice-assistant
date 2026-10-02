@@ -62,11 +62,15 @@ public struct AliceAnswer: Sendable, Equatable {
     /// Без этого признака «повторяю ответ» звучало и когда ответ в работе, и
     /// когда нового не будет вовсе, а человек эти случаи не различал.
     public let isPending: Bool
+    /// Сколько сообщений ещё лежит в очереди после этого. Нужно, чтобы
+    /// человек знал, стоит ли говорить «дальше», а не угадывал.
+    public let remaining: Int
 
-    public init(text: String, isRepeat: Bool, isPending: Bool = false) {
+    public init(text: String, isRepeat: Bool, isPending: Bool = false, remaining: Int = 0) {
         self.text = text
         self.isRepeat = isRepeat
         self.isPending = isPending
+        self.remaining = remaining
     }
 }
 
@@ -142,6 +146,11 @@ public enum AliceHandler {
             .filter { !$0.isEmpty }
         let normalized = stripActivation(words).joined(separator: " ")
         if normalized == "ответ" { return true }
+        // Листание очереди — та же команда, что запрос ответа: следующее
+        // сообщение. Отдельной машинерии не нужно, разница в длине фразы.
+        if ["дальше", "следующее", "следующий", "что ещё", "ещё"].contains(normalized) {
+            return true
+        }
         for form in ["дай ответ", "дать ответ", "дай ответа", "прочитай ответ",
                      "прочти ответ", "какой ответ", "твой ответ", "скажи ответ",
                      "озвучь ответ"] {
@@ -171,7 +180,21 @@ public enum AliceHandler {
         } else {
             spoken = text
         }
-        return AliceResponse(text: spoken, tts: spoken)
+        return AliceResponse(text: spoken + tail(answer?.remaining ?? 0),
+                             tts: spoken + tail(answer?.remaining ?? 0))
+    }
+
+    /// Хвост про остаток очереди. Числительные словами: цифры Алиса читает
+    /// сносно, но «ещё 2 сообщения» звучит канцелярски.
+    static func tail(_ remaining: Int) -> String {
+        switch remaining {
+        case 0: return ""
+        case 1: return " Есть ещё одно сообщение, скажи дальше."
+        case 2: return " Есть ещё два сообщения, скажи дальше."
+        case 3: return " Есть ещё три сообщения, скажи дальше."
+        case 4: return " Есть ещё четыре сообщения, скажи дальше."
+        default: return " Есть ещё \(remaining) сообщений, скажи дальше."
+        }
     }
 
     /// Текст ответа на каждый исход. Голосом отвечаем короче, чем пишем.

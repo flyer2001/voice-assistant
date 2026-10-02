@@ -90,6 +90,33 @@ struct AliceHandlerTests {
         #expect(empty.response.end_session == false)
     }
 
+    @Test("«дальше» листает очередь той же командой, что «дай ответ»")
+    func nextIsAnswerRequest() {
+        // Отдельной машинерии не нужно: листание — это запрос следующего
+        // сообщения. Разница только в том, что произносить короче.
+        for phrase in ["дальше", "Дальше.", "следующее", "что ещё",
+                       "попроси личного ассистента дальше"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .answerRequest,
+                    "«\(phrase)» должно листать очередь")
+        }
+    }
+
+    @Test("хвост говорит, сколько сообщений осталось")
+    func answerReplyTail() {
+        let two = AliceHandler.answerReply(
+            AliceAnswer(text: "от авито: слой ждёт коммита", isRepeat: false, remaining: 2))
+        #expect(two.response.text.contains("ещё два"))
+        #expect(two.response.text.contains("дальше"))
+
+        let one = AliceHandler.answerReply(
+            AliceAnswer(text: "одно дело", isRepeat: false, remaining: 1))
+        #expect(one.response.text.contains("ещё одно"))
+
+        let last = AliceHandler.answerReply(
+            AliceAnswer(text: "последнее", isRepeat: false, remaining: 0))
+        #expect(!last.response.text.contains("ещё"), "хвоста быть не должно")
+    }
+
     @Test("вопрос новее ответа — говорим, что ответ готовится")
     func answerReplyPending() {
         // Живая путаница 2026-10-02: «повторяю ответ» звучало и когда ответ
