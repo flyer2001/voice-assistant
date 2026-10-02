@@ -195,6 +195,11 @@ let aliceConfig: AliceConfig? = {
     // вопрос Алиса повторит прошлый ответ.
     let answerFile = URL(fileURLWithPath:
         env["ALICE_ANSWER_FILE"] ?? "/var/lib/voice-bot/alice-answer.txt")
+    // Прочитанное живёт рядом: ящик не одноразовый, повтор нужен на случай
+    // «не расслышал», но звучит с оговоркой.
+    let readAnswerFile = answerFile.deletingPathExtension()
+        .appendingPathExtension("read")
+        .appendingPathExtension(answerFile.pathExtension)
 
     return AliceConfig(
         pathSecret: secret,
@@ -231,20 +236,35 @@ let aliceConfig: AliceConfig? = {
             }
         },
         takeAnswer: {
-            guard let data = try? Data(contentsOf: answerFile),
-                  let text = String(data: data, encoding: .utf8),
-                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            else {
-                logger.info("ящик ответа пуст", metadata: ["file": .string(answerFile.path)])
-                return nil
+            /// Непустое содержимое файла или nil.
+            func read(_ url: URL) -> String? {
+                guard let data = try? Data(contentsOf: url),
+                      let text = String(data: data, encoding: .utf8),
+                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                else { return nil }
+                return text
             }
-            // Опустошаем сразу: повторное «дай ответ» не должно повторять
-            // прошлый ответ как новый.
-            try? Data().write(to: answerFile)
-            logger.info("ответ озвучен", metadata: [
-                "chars": .stringConvertible(text.count)
-            ])
-            return text
+
+            // Свежий ответ всегда побеждает прочитанный: агент, положив новый
+            // текст, вытесняет прошлый вместе с пометкой повтора.
+            if let text = read(answerFile) {
+                // Переезд в «прочитанное» вместо опустошения: человек мог не
+                // расслышать и попросить снова.
+                try? FileManager.default.removeItem(at: readAnswerFile)
+                try? FileManager.default.moveItem(at: answerFile, to: readAnswerFile)
+                logger.info("ответ озвучен", metadata: [
+                    "chars": .stringConvertible(text.count)
+                ])
+                return AliceAnswer(text: text, isRepeat: false)
+            }
+            if let text = read(readAnswerFile) {
+                logger.info("ответ озвучен повторно", metadata: [
+                    "chars": .stringConvertible(text.count)
+                ])
+                return AliceAnswer(text: text, isRepeat: true)
+            }
+            logger.info("ящик ответа пуст", metadata: ["file": .string(answerFile.path)])
+            return nil
         }
     )
 }()

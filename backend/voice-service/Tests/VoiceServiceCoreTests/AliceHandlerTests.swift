@@ -67,7 +67,8 @@ struct AliceHandlerTests {
 
     @Test("ответ из ящика озвучивается, пустой ящик — так и говорим")
     func answerReplyRendering() {
-        let withText = AliceHandler.answerReply("horse genital diagnostics")
+        let withText = AliceHandler.answerReply(
+            AliceAnswer(text: "horse genital diagnostics", isRepeat: false))
         #expect(withText.response.text == "horse genital diagnostics")
         #expect(withText.response.tts == "horse genital diagnostics")
         #expect(withText.response.end_session == false)
@@ -75,6 +76,18 @@ struct AliceHandlerTests {
         let empty = AliceHandler.answerReply(nil)
         #expect(empty.response.text.contains("пока нет"))
         #expect(empty.response.end_session == false)
+    }
+
+    @Test("повторный запрос того же ответа предупреждает, что это повтор")
+    func answerReplyRepeat() {
+        // Ящик не одноразовый: человек мог не расслышать. Но повтор обязан
+        // звучать как повтор, иначе старый ответ сойдёт за ответ на новый
+        // вопрос.
+        let again = AliceHandler.answerReply(
+            AliceAnswer(text: "horse genital diagnostics", isRepeat: true))
+        #expect(again.response.text.hasPrefix("Повторяю ответ:"))
+        #expect(again.response.text.contains("horse genital diagnostics"))
+        #expect(again.response.tts?.hasPrefix("Повторяю ответ:") == true)
     }
 
     @Test("пробелы по краям срезаются")

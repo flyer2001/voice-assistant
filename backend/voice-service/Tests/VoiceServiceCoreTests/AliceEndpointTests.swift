@@ -119,11 +119,25 @@ struct AliceEndpointTests {
         #expect(sink.all.isEmpty)
     }
 
-    @Test("«дай ответ» отдаёт подготовленный текст и забирает его из ящика")
+    /// Ящик, который отдаёт один и тот же текст, помечая второй раз повтором.
+    final class Box: @unchecked Sendable {
+        private let lock = NSLock()
+        private var delivered = false
+        let text: String?
+        init(_ text: String?) { self.text = text }
+        func take() -> AliceAnswer? {
+            guard let text else { return nil }
+            lock.lock(); defer { lock.unlock() }
+            let answer = AliceAnswer(text: text, isRepeat: delivered)
+            delivered = true
+            return answer
+        }
+    }
+
+    @Test("«дай ответ» озвучивает ящик, повтор помечается повтором")
     func answerRequestReadsMailbox() async throws {
         let sink = Sink()
-        let box = Sink()
-        box.add("horse genital diagnostics")
+        let box = Box("horse genital diagnostics")
         let app = VoiceServiceApp.make(config: Configuration(
             token: "T",
             replyProvider: { _ in "unused" },
@@ -136,9 +150,35 @@ struct AliceEndpointTests {
                 uri: "/v1/alice/s3cret", method: .post, body: body(command: "дай ответ")
             ) { response in
                 #expect(response.status == .ok)
-                #expect(String(buffer: response.body).contains("horse genital diagnostics"))
+                let text = String(buffer: response.body)
+                #expect(text.contains("horse genital diagnostics"))
+                #expect(!text.contains("Повторяю"), "первый раз — не повтор")
             }
-            // Ящик одноразовый: второй запрос подряд уже пустой.
+            // Не расслышал — просит снова. Текст тот же, но помечен повтором.
+            try await client.execute(
+                uri: "/v1/alice/s3cret", method: .post, body: body(command: "дай ответ")
+            ) { response in
+                let text = String(buffer: response.body)
+                #expect(text.contains("Повторяю ответ"))
+                #expect(text.contains("horse genital diagnostics"))
+            }
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(sink.all.isEmpty, "запрос ответа не должен инжектиться в сессию")
+    }
+
+    @Test("пустой ящик — «ответа пока нет», инжекта нет")
+    func answerRequestEmptyMailbox() async throws {
+        let sink = Sink()
+        let box = Box(nil)
+        let app = VoiceServiceApp.make(config: Configuration(
+            token: "T",
+            replyProvider: { _ in "unused" },
+            alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
+                               inject: { text in sink.add(text) },
+                               takeAnswer: { box.take() })
+        ))
+        try await app.test(.router) { client in
             try await client.execute(
                 uri: "/v1/alice/s3cret", method: .post, body: body(command: "дай ответ")
             ) { response in
@@ -146,7 +186,7 @@ struct AliceEndpointTests {
             }
         }
         try await Task.sleep(for: .milliseconds(200))
-        #expect(sink.all.isEmpty, "запрос ответа не должен инжектиться в сессию")
+        #expect(sink.all.isEmpty)
     }
 
     @Test("остальные маршруты по-прежнему требуют токен")

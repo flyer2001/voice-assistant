@@ -52,6 +52,19 @@ public struct AliceResponse: Encodable, Sendable {
     }
 }
 
+/// Готовый ответ из ящика. `isRepeat` — его уже озвучивали: ящик нарочно не
+/// одноразовый (человек мог не расслышать), но повтор нельзя подавать как
+/// свежий ответ.
+public struct AliceAnswer: Sendable, Equatable {
+    public let text: String
+    public let isRepeat: Bool
+
+    public init(text: String, isRepeat: Bool) {
+        self.text = text
+        self.isRepeat = isRepeat
+    }
+}
+
 /// Что ответить на реплику.
 public enum AliceOutcome: Equatable, Sendable {
     /// Приветствие при запуске навыка — команды ещё не было.
@@ -111,12 +124,17 @@ public enum AliceHandler {
     }
 
     /// Ответ на «дай ответ»: либо текст из ящика, либо честное «пока нет».
-    public static func answerReply(_ answer: String?) -> AliceResponse {
-        guard let answer, !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    public static func answerReply(_ answer: AliceAnswer?) -> AliceResponse {
+        guard let answer,
+              case let text = answer.text.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty
+        else {
             return AliceResponse(text: "Ответа пока нет.", tts: "Ответа пока нет.")
         }
-        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-        return AliceResponse(text: text, tts: text)
+        // Повтор обязан звучать как повтор: иначе ответ на прошлый вопрос
+        // сойдёт за ответ на новый, и человек этого не различит.
+        let spoken = answer.isRepeat ? "Повторяю ответ: \(text)" : text
+        return AliceResponse(text: spoken, tts: spoken)
     }
 
     /// Текст ответа на каждый исход. Голосом отвечаем короче, чем пишем.
