@@ -46,13 +46,19 @@ public struct AliceConfig: Sendable {
     /// Куда девать распознанную реплику. Вызывается в фоне: ответ Диалогам
     /// уходит сразу, иначе не уложиться в 4.5 секунды.
     public let inject: @Sendable (String) async -> Void
+    /// Забирает подготовленный ответ, если он есть, и опустошает ящик.
+    /// Так колонка озвучивает ответ, хотя навык не может заговорить первым:
+    /// человек спрашивает «дай ответ», когда текст уже лежит.
+    public let takeAnswer: @Sendable () async -> String?
 
     public init(pathSecret: String,
                 skillId: String? = nil,
-                inject: @escaping @Sendable (String) async -> Void) {
+                inject: @escaping @Sendable (String) async -> Void,
+                takeAnswer: @escaping @Sendable () async -> String? = { nil }) {
         self.pathSecret = pathSecret
         self.skillId = skillId
         self.inject = inject
+        self.takeAnswer = takeAnswer
     }
 }
 

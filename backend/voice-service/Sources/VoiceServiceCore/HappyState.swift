@@ -28,6 +28,7 @@ public enum HappyStateError: Error, Equatable {
     case sessionsFileMissing(String)
     case sessionsFileMalformed(String)
     case noRunningSessionForCwd(String)
+    case sessionNotRunning(String)
     case unsupportedEncryptionVariant(String)
 }
 
@@ -90,5 +91,17 @@ public struct HappyState: Sendable {
         }
         let pick = sorted[0]
         return (pick.key, pick.value)
+    }
+
+    /// Pick an exact session by happy sid. Нужно, когда в одном каталоге живут
+    /// несколько running-сессий: выбор по cwd всегда берёт самую свежую, а
+    /// реплику бывает надо увести в конкретную. Как `inject.mjs --to-sid`.
+    public func pickRunningSession(bySid sid: String, sessions: [String: HappySessionRecord]) throws -> (sid: String, record: HappySessionRecord) {
+        guard let record = sessions[sid],
+              record.metadata?.lifecycleState == "running"
+        else {
+            throw HappyStateError.sessionNotRunning(sid)
+        }
+        return (sid, record)
     }
 }

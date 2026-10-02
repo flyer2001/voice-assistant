@@ -58,7 +58,10 @@ public struct LiveHappyInjectMessenger: Sendable {
     /// Happy server has accepted the encrypted envelope. The dispatcher session
     /// is expected to reply asynchronously via a separate channel (e.g. POST
     /// /v1/vk/send for the VK bot path).
-    public func injectNoWait(text: String, targetCwd: String) async throws {
+    /// `targetSid` адресует конкретную сессию и бьёт выбор по каталогу: в одном
+    /// cwd может жить несколько running-сессий, и реплика тогда уходит в самую
+    /// свежую, а не в нужную. Пусто — работает прежний выбор по cwd.
+    public func injectNoWait(text: String, targetCwd: String, targetSid: String? = nil) async throws {
         let token: String
         let sessions: [String: HappySessionRecord]
         do {
@@ -70,7 +73,11 @@ public struct LiveHappyInjectMessenger: Sendable {
 
         let pick: (sid: String, record: HappySessionRecord)
         do {
-            pick = try state.pickRunningSession(byCwd: targetCwd, sessions: sessions)
+            if let targetSid, !targetSid.isEmpty {
+                pick = try state.pickRunningSession(bySid: targetSid, sessions: sessions)
+            } else {
+                pick = try state.pickRunningSession(byCwd: targetCwd, sessions: sessions)
+            }
         } catch let err as HappyStateError {
             throw Error.state(err)
         }

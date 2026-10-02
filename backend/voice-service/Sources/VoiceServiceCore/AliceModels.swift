@@ -60,6 +60,8 @@ public enum AliceOutcome: Equatable, Sendable {
     case accepted(String)
     /// Пустая реплика внутри сессии — человек промолчал или его не расслышали.
     case empty
+    /// Просьба озвучить подготовленный ответ, а не передать реплику дальше.
+    case answerRequest
 }
 
 public enum AliceHandler {
@@ -74,7 +76,47 @@ public enum AliceHandler {
         if text.isEmpty {
             return .empty
         }
+        if isAnswerRequest(text) {
+            return .answerRequest
+        }
         return .accepted(text)
+    }
+
+    /// Фразы, которыми человек просит озвучить готовый ответ.
+    ///
+    /// Нарочно узкий список: слово «ответ» само по себе встречается в обычных
+    /// репликах («запиши мысль про ответы сервиса»), и такую диктовку нельзя
+    /// принимать за просьбу прочитать ящик.
+    static func isAnswerRequest(_ text: String) -> Bool {
+        var words = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        // Алиса иногда отдаёт реплику вместе с активационным именем
+        // («попроси личного ассистента дать ответ», живой случай 2026-10-02).
+        // Срезаем служебное начало, иначе просьба не узнаётся.
+        let activation: Set<String> = ["алиса", "попроси", "попросить", "спроси",
+                                       "спросить", "у", "личного", "личный",
+                                       "ассистента", "ассистент", "мой", "моего"]
+        while let first = words.first, activation.contains(first) {
+            words.removeFirst()
+        }
+        let normalized = words.joined(separator: " ")
+        if normalized == "ответ" { return true }
+        for form in ["дай ответ", "дать ответ", "дай ответа", "прочитай ответ",
+                     "прочти ответ", "какой ответ", "твой ответ", "скажи ответ",
+                     "озвучь ответ"] {
+            if normalized.hasPrefix(form) { return true }
+        }
+        return false
+    }
+
+    /// Ответ на «дай ответ»: либо текст из ящика, либо честное «пока нет».
+    public static func answerReply(_ answer: String?) -> AliceResponse {
+        guard let answer, !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return AliceResponse(text: "Ответа пока нет.", tts: "Ответа пока нет.")
+        }
+        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        return AliceResponse(text: text, tts: text)
     }
 
     /// Текст ответа на каждый исход. Голосом отвечаем короче, чем пишем.
@@ -94,6 +136,10 @@ public enum AliceHandler {
                 text: "Не расслышала. Повторите, пожалуйста.",
                 tts: "Не расслышала. Повторите, пожалуйста."
             )
+        case .answerRequest:
+            // Маршрут отвечает сам — через answerReply с содержимым ящика.
+            // Сюда попадаем только если ящик прочитать не удалось.
+            return answerReply(nil)
         }
     }
 }

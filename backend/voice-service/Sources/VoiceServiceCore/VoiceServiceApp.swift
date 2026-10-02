@@ -41,7 +41,14 @@ public enum VoiceServiceApp {
                     Task.detached { await alice.inject(text) }
                 }
 
-                let reply = AliceHandler.reply(for: outcome)
+                // Запрос готового ответа ждём на месте: это чтение ящика,
+                // миллисекунды, и ответ нужен в этой же реплике.
+                let reply: AliceResponse
+                if case .answerRequest = outcome {
+                    reply = AliceHandler.answerReply(await alice.takeAnswer())
+                } else {
+                    reply = AliceHandler.reply(for: outcome)
+                }
                 let data = try JSONEncoder().encode(reply)
                 var response = Response(status: .ok, body: .init(byteBuffer: ByteBuffer(data: data)))
                 response.headers[.contentType] = "application/json"

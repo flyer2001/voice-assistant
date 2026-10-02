@@ -32,6 +32,51 @@ struct AliceHandlerTests {
         #expect(outcome == .accepted("запиши мысль про кэширование"))
     }
 
+    @Test("«дай ответ» — это запрос готового ответа, а не реплика в сессию")
+    func answerRequestRecognised() {
+        for phrase in ["дай ответ", "Дай ответ.", "дай ответ пожалуйста",
+                       "ответ", "прочитай ответ", "какой ответ"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .answerRequest,
+                    "«\(phrase)» должно читаться как запрос ответа")
+        }
+    }
+
+    @Test("активационное имя в команде не мешает узнать запрос ответа")
+    func answerRequestWithLeakedActivationName() {
+        // Живой случай 2026-10-02: Алиса прислала команду целиком, вместе с
+        // «попроси личного ассистента». Матчер по началу строки её не узнал.
+        for phrase in ["попроси личного ассистента дать ответ",
+                       "личный ассистент дай ответ",
+                       "ассистента дай ответ",
+                       "дать ответ"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .answerRequest,
+                    "«\(phrase)» должно читаться как запрос ответа")
+        }
+    }
+
+    @Test("обычная реплика со словом «ответ» остаётся репликой")
+    func answerWordAloneIsNotRequest() {
+        // Иначе диктовка «запиши мысль про ответы сервиса» уедет в чтение
+        // ящика вместо инжекта.
+        for phrase in ["запиши мысль про ответы сервиса",
+                       "переведи слово ответ на английский"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .accepted(phrase),
+                    "«\(phrase)» должно уйти в сессию")
+        }
+    }
+
+    @Test("ответ из ящика озвучивается, пустой ящик — так и говорим")
+    func answerReplyRendering() {
+        let withText = AliceHandler.answerReply("horse genital diagnostics")
+        #expect(withText.response.text == "horse genital diagnostics")
+        #expect(withText.response.tts == "horse genital diagnostics")
+        #expect(withText.response.end_session == false)
+
+        let empty = AliceHandler.answerReply(nil)
+        #expect(empty.response.text.contains("пока нет"))
+        #expect(empty.response.end_session == false)
+    }
+
     @Test("пробелы по краям срезаются")
     func trimsWhitespace() {
         #expect(AliceHandler.decide(req(command: "  проверь статус  "))

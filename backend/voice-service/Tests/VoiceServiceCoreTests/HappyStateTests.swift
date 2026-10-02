@@ -53,6 +53,43 @@ struct HappyStateTests {
         #expect(picked.sid == "sid-new", "should pick most recent running session")
     }
 
+    @Test("pickRunningSession(bySid:) adresses a session the cwd pick would miss")
+    func pickBySid() throws {
+        // Две живые сессии в одном каталоге: по cwd выбирается всегда свежая.
+        // Адресация по sid нужна, когда реплику надо увести в ту, что старше.
+        let json = """
+        {"sessions":{
+            "sid-old":{"encryptionVariant":"dataKey","encryptionKey":"AAAA","metadata":{"path":"/root/projects/voice","lifecycleState":"running","lifecycleStateSince":1000}},
+            "sid-new":{"encryptionVariant":"dataKey","encryptionKey":"BBBB","metadata":{"path":"/root/projects/voice","lifecycleState":"running","lifecycleStateSince":2000}}
+        }}
+        """
+        let home = try makeTempHome(token: "t", sessionsJSON: json)
+        let state = HappyState(happyHome: home)
+        let sessions = try state.readSessions()
+        #expect(try state.pickRunningSession(byCwd: "/root/projects/voice", sessions: sessions).sid == "sid-new")
+        let picked = try state.pickRunningSession(bySid: "sid-old", sessions: sessions)
+        #expect(picked.sid == "sid-old")
+        #expect(picked.record.encryptionKey == "AAAA")
+    }
+
+    @Test("pickRunningSession(bySid:) throws for unknown and for not-running sid")
+    func pickBySidRejects() throws {
+        let json = """
+        {"sessions":{
+            "sid-stopped":{"encryptionVariant":"dataKey","encryptionKey":"AAAA","metadata":{"path":"/root/projects/voice","lifecycleState":"stopped","lifecycleStateSince":1000}}
+        }}
+        """
+        let home = try makeTempHome(token: "t", sessionsJSON: json)
+        let state = HappyState(happyHome: home)
+        let sessions = try state.readSessions()
+        #expect(throws: HappyStateError.self) {
+            _ = try state.pickRunningSession(bySid: "sid-stopped", sessions: sessions)
+        }
+        #expect(throws: HappyStateError.self) {
+            _ = try state.pickRunningSession(bySid: "sid-missing", sessions: sessions)
+        }
+    }
+
     @Test("pickRunningSession throws when no running session for cwd")
     func noRunning() throws {
         let json = """

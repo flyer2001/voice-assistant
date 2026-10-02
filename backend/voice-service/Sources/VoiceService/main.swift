@@ -189,25 +189,38 @@ let aliceConfig: AliceConfig? = {
     let logger = Logger(label: "alice")
     let peer = env["VK_BOT_OWNER_IDS"] ?? ""
 
+    // Ящик ответа. Агент кладёт текст файлом, человек просит «дай ответ» —
+    // навык озвучивает и опустошает. Так колонка отдаёт ответ голосом, хотя
+    // заговорить первой не может. Одноразовость нарочная: иначе на второй
+    // вопрос Алиса повторит прошлый ответ.
+    let answerFile = URL(fileURLWithPath:
+        env["ALICE_ANSWER_FILE"] ?? "/var/lib/voice-bot/alice-answer.txt")
+
     return AliceConfig(
         pathSecret: secret,
         skillId: env["ALICE_SKILL_ID"],
         inject: { text in
             let (cwd, source) = resolveFocusTarget(defaultCwd)
+            // ALICE_TARGET_SID адресует конкретную сессию. Нужно, когда в
+            // каталоге несколько живых сессий: выбор по cwd берёт самую свежую,
+            // и на обкатке реплики падали в соседнюю (2026-10-02).
+            let targetSid = env["ALICE_TARGET_SID"]
             // Провенанс как у VK: сессия должна понимать, откуда реплика и
             // куда отвечать. Колонка ответ не озвучит — навык не может
             // заговорить первым, поэтому ответ уходит обычными каналами.
             let header = [
                 "[voice from Sergey, src=alice-station, lang=ru, peer=\(peer)]",
-                "[reply: voice-say / voice-reply-both <peer> \"<text>\" — колонка ответ не озвучит]",
+                "[reply голосом в колонку: положи текст в \(answerFile.path) — Sergey скажет «дай ответ», Алиса озвучит и ящик опустеет]",
+                "[reply обычными каналами: voice-say / voice-reply-both <peer> \"<text>\"]",
                 "[details: docs/alice-skill-input.md]",
                 "",
                 text
             ].joined(separator: "\n")
             do {
-                try await messenger.injectNoWait(text: header, targetCwd: cwd)
+                try await messenger.injectNoWait(text: header, targetCwd: cwd, targetSid: targetSid)
                 logger.info("реплика передана", metadata: [
                     "cwd": .string(cwd), "focus_source": .string(source),
+                    "sid": .string(targetSid ?? "по cwd"),
                     "chars": .stringConvertible(text.count)
                 ])
             } catch {
@@ -216,6 +229,22 @@ let aliceConfig: AliceConfig? = {
                     "cwd": .string(cwd), "error": .string("\(error)")
                 ])
             }
+        },
+        takeAnswer: {
+            guard let data = try? Data(contentsOf: answerFile),
+                  let text = String(data: data, encoding: .utf8),
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                logger.info("ящик ответа пуст", metadata: ["file": .string(answerFile.path)])
+                return nil
+            }
+            // Опустошаем сразу: повторное «дай ответ» не должно повторять
+            // прошлый ответ как новый.
+            try? Data().write(to: answerFile)
+            logger.info("ответ озвучен", metadata: [
+                "chars": .stringConvertible(text.count)
+            ])
+            return text
         }
     )
 }()

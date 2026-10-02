@@ -13,6 +13,11 @@ struct AliceEndpointTests {
         private var items: [String] = []
         func add(_ s: String) { lock.lock(); items.append(s); lock.unlock() }
         var all: [String] { lock.lock(); defer { lock.unlock() }; return items }
+        /// Забирает первый элемент — им изображаем одноразовый ящик ответов.
+        func take() -> String? {
+            lock.lock(); defer { lock.unlock() }
+            return items.isEmpty ? nil : items.removeFirst()
+        }
     }
 
     private func makeApp(secret: String = "s3cret",
@@ -112,6 +117,36 @@ struct AliceEndpointTests {
         }
         try await Task.sleep(for: .milliseconds(200))
         #expect(sink.all.isEmpty)
+    }
+
+    @Test("«дай ответ» отдаёт подготовленный текст и забирает его из ящика")
+    func answerRequestReadsMailbox() async throws {
+        let sink = Sink()
+        let box = Sink()
+        box.add("horse genital diagnostics")
+        let app = VoiceServiceApp.make(config: Configuration(
+            token: "T",
+            replyProvider: { _ in "unused" },
+            alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
+                               inject: { text in sink.add(text) },
+                               takeAnswer: { box.take() })
+        ))
+        try await app.test(.router) { client in
+            try await client.execute(
+                uri: "/v1/alice/s3cret", method: .post, body: body(command: "дай ответ")
+            ) { response in
+                #expect(response.status == .ok)
+                #expect(String(buffer: response.body).contains("horse genital diagnostics"))
+            }
+            // Ящик одноразовый: второй запрос подряд уже пустой.
+            try await client.execute(
+                uri: "/v1/alice/s3cret", method: .post, body: body(command: "дай ответ")
+            ) { response in
+                #expect(String(buffer: response.body).contains("пока нет"))
+            }
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(sink.all.isEmpty, "запрос ответа не должен инжектиться в сессию")
     }
 
     @Test("остальные маршруты по-прежнему требуют токен")
