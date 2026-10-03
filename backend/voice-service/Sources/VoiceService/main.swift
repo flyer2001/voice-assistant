@@ -317,6 +317,36 @@ let aliceConfig: AliceConfig? = {
             logger.info(pending ? "ответ готовится, прошлого нет" : "ящик ответа пуст",
                         metadata: ["file": .string(answerFile.path)])
             return pending ? AliceAnswer(text: "", isRepeat: false, isPending: true) : nil
+        },
+        repeatLast: {
+            // Переслушивание очередь не двигает: человек просит то же самое,
+            // а не следующее.
+            guard let data = try? Data(contentsOf: readAnswerFile),
+                  let text = String(data: data, encoding: .utf8),
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                logger.info("переслушивать нечего")
+                return nil
+            }
+            logger.info("последнее переслушано", metadata: [
+                "chars": .stringConvertible(text.count),
+                "remaining": .stringConvertible(queued().count)
+            ])
+            return AliceAnswer(text: text, isRepeat: true, remaining: queued().count)
+        },
+        clearQueue: {
+            // Чистим только непрочитанное. Архив не трогаем: он нужен для
+            // переслушивания и для отматывания назад, когда дойдём до него.
+            let items = queued()
+            for item in items {
+                try? FileManager.default.moveItem(
+                    at: item,
+                    to: archiveDir.appendingPathComponent(item.lastPathComponent))
+            }
+            logger.info("очередь очищена", metadata: [
+                "removed": .stringConvertible(items.count)
+            ])
+            return items.count
         }
     )
 }()

@@ -44,9 +44,14 @@ public enum VoiceServiceApp {
                 // Запрос готового ответа ждём на месте: это чтение ящика,
                 // миллисекунды, и ответ нужен в этой же реплике.
                 let reply: AliceResponse
-                if case .answerRequest = outcome {
+                switch outcome {
+                case .answerRequest:
                     reply = AliceHandler.answerReply(await alice.takeAnswer())
-                } else {
+                case .repeatRequest:
+                    reply = AliceHandler.answerReply(await alice.repeatLast())
+                case .clearRequest:
+                    reply = AliceHandler.clearReply(removed: await alice.clearQueue())
+                default:
                     reply = AliceHandler.reply(for: outcome)
                 }
                 let data = try JSONEncoder().encode(reply)

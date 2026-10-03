@@ -101,6 +101,36 @@ struct AliceHandlerTests {
         }
     }
 
+    @Test("«повтори» переслушивает, а не листает очередь")
+    func repeatIsItsOwnCommand() {
+        for phrase in ["повтори", "Повтори.", "повтори ответ", "ещё раз",
+                       "попроси личного ассистента повтори"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .repeatRequest,
+                    "«\(phrase)» должно переслушивать последнее")
+        }
+        // «дальше» по-прежнему листает — команды не должны слиться.
+        #expect(AliceHandler.decide(req(command: "дальше")) == .answerRequest)
+    }
+
+    @Test("«очисти» выбрасывает очередь")
+    func clearCommand() {
+        for phrase in ["очисти", "очисти очередь", "забудь всё", "удали все сообщения"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .clearRequest,
+                    "«\(phrase)» должно чистить очередь")
+        }
+        // Диктовка про удаление остаётся репликой, а не командой.
+        #expect(AliceHandler.decide(req(command: "запиши мысль удалить старый код"))
+                == .accepted("запиши мысль удалить старый код"))
+    }
+
+    @Test("после очистки говорим, сколько выбросили")
+    func clearReply() {
+        #expect(AliceHandler.clearReply(removed: 3).response.text.contains("три"))
+        #expect(AliceHandler.clearReply(removed: 1).response.text.contains("одно"))
+        let empty = AliceHandler.clearReply(removed: 0)
+        #expect(empty.response.text.contains("пуст"))
+    }
+
     @Test("хвост говорит, сколько сообщений осталось")
     func answerReplyTail() {
         let two = AliceHandler.answerReply(

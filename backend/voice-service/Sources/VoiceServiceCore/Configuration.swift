@@ -50,15 +50,23 @@ public struct AliceConfig: Sendable {
     /// Так колонка озвучивает ответ, хотя навык не может заговорить первым:
     /// человек спрашивает «дай ответ», когда текст уже лежит.
     public let takeAnswer: @Sendable () async -> AliceAnswer?
+    /// Переслушать последнее, не листая очередь.
+    public let repeatLast: @Sendable () async -> AliceAnswer?
+    /// Выбросить очередь, вернув число убранных сообщений.
+    public let clearQueue: @Sendable () async -> Int
 
     public init(pathSecret: String,
                 skillId: String? = nil,
                 inject: @escaping @Sendable (String) async -> Void,
-                takeAnswer: @escaping @Sendable () async -> AliceAnswer? = { nil }) {
+                takeAnswer: @escaping @Sendable () async -> AliceAnswer? = { nil },
+                repeatLast: @escaping @Sendable () async -> AliceAnswer? = { nil },
+                clearQueue: @escaping @Sendable () async -> Int = { 0 }) {
         self.pathSecret = pathSecret
         self.skillId = skillId
         self.inject = inject
         self.takeAnswer = takeAnswer
+        self.repeatLast = repeatLast
+        self.clearQueue = clearQueue
     }
 }
 

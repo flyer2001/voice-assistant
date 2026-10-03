@@ -82,8 +82,12 @@ public enum AliceOutcome: Equatable, Sendable {
     case accepted(String)
     /// Пустая реплика внутри сессии — человек промолчал или его не расслышали.
     case empty
-    /// Просьба озвучить подготовленный ответ, а не передать реплику дальше.
+    /// Просьба озвучить следующее сообщение, а не передать реплику дальше.
     case answerRequest
+    /// Переслушать последнее, не листая очередь.
+    case repeatRequest
+    /// Выбросить очередь.
+    case clearRequest
 }
 
 public enum AliceHandler {
@@ -97,6 +101,23 @@ public enum AliceHandler {
         }
         if text.isEmpty {
             return .empty
+        }
+        let stripped = stripActivation(
+            text.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+        ).joined(separator: " ")
+
+        // Команды проверяем до инжекта, но после приветствия: иначе реплика
+        // человека уедет в управление очередью.
+        if ["повтори", "повтори ответ", "повтори ещё раз", "ещё раз",
+            "повтори пожалуйста"].contains(stripped) {
+            return .repeatRequest
+        }
+        if ["очисти", "очисти очередь", "очистить очередь", "забудь",
+            "забудь всё", "забудь все", "удали все сообщения",
+            "удали всё", "удали все"].contains(stripped) {
+            return .clearRequest
         }
         if isAnswerRequest(text) {
             return .answerRequest
@@ -184,6 +205,21 @@ public enum AliceHandler {
                              tts: spoken + tail(answer?.remaining ?? 0))
     }
 
+    /// Что сказать после очистки. Число называем: человек должен услышать,
+    /// что именно выбросили, — команда необратимая.
+    public static func clearReply(removed: Int) -> AliceResponse {
+        let spoken: String
+        switch removed {
+        case 0: spoken = "Очередь и так пуста."
+        case 1: spoken = "Очередь очищена, убрал одно сообщение."
+        case 2: spoken = "Очередь очищена, убрал два сообщения."
+        case 3: spoken = "Очередь очищена, убрал три сообщения."
+        case 4: spoken = "Очередь очищена, убрал четыре сообщения."
+        default: spoken = "Очередь очищена, убрал \(removed) сообщений."
+        }
+        return AliceResponse(text: spoken, tts: spoken)
+    }
+
     /// Хвост про остаток очереди. Числительные словами: цифры Алиса читает
     /// сносно, но «ещё 2 сообщения» звучит канцелярски.
     static func tail(_ remaining: Int) -> String {
@@ -214,10 +250,12 @@ public enum AliceHandler {
                 text: "Не расслышала. Повторите, пожалуйста.",
                 tts: "Не расслышала. Повторите, пожалуйста."
             )
-        case .answerRequest:
+        case .answerRequest, .repeatRequest:
             // Маршрут отвечает сам — через answerReply с содержимым ящика.
             // Сюда попадаем только если ящик прочитать не удалось.
             return answerReply(nil)
+        case .clearRequest:
+            return clearReply(removed: 0)
         }
     }
 }
