@@ -13,6 +13,9 @@ public struct Configuration: Sendable {
     public let audioLimits: AudioLimits
     /// Навык Алисы. Nil — маршрут не поднимается вовсе.
     public let alice: AliceConfig?
+    /// Навык умного дома: виртуальная лампочка для пуша на колонку.
+    /// Nil — ни ручки OAuth, ни Provider API не поднимаются.
+    public let smartHome: SmartHomeConfig?
 
     public init(
         token: String,
@@ -21,7 +24,8 @@ public struct Configuration: Sendable {
         vkSendProvider: (@Sendable (_ peerId: Int64, _ text: String) async throws -> Void)? = nil,
         requestLogger: RequestLogger? = nil,
         audioLimits: AudioLimits = .default,
-        alice: AliceConfig? = nil
+        alice: AliceConfig? = nil,
+        smartHome: SmartHomeConfig? = nil
     ) {
         self.token = token
         self.replyProvider = replyProvider
@@ -30,6 +34,27 @@ public struct Configuration: Sendable {
         self.requestLogger = requestLogger
         self.audioLimits = audioLimits
         self.alice = alice
+        self.smartHome = smartHome
+    }
+}
+
+/// Настройки навыка умного дома.
+///
+/// Лампочка «Уведомление» ничего не освещает: это переключатель, за который
+/// дёргает бэкенд, чтобы сценарий в «Доме с Алисой» проиграл звук на
+/// колонке. План — docs/plans/2026-10-04-alice-smart-home-push.md
+public struct SmartHomeConfig: Sendable {
+    public let store: OAuthStore
+    public let state: SmartHomeState
+    public let deviceId: String
+    public let deviceName: String
+
+    public init(store: OAuthStore, state: SmartHomeState,
+                deviceId: String, deviceName: String) {
+        self.store = store
+        self.state = state
+        self.deviceId = deviceId
+        self.deviceName = deviceName
     }
 }
 

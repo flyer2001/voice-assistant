@@ -8,10 +8,24 @@ public enum VoiceServiceApp {
     /// when invoking `app.test(...)` or `app.run()`.
     public static func make(config: Configuration, host: String = "127.0.0.1", port: Int = 8089) -> some ApplicationProtocol {
         let router = Router()
+        // Послабление в авторизации действует только на префиксы навыков и
+        // только когда навык настроен: Яндекс свой Bearer не шлёт. Платформа
+        // умного дома авторизуется своим OAuth-токеном, который проверяется
+        // внутри обработчиков.
+        var exempt: [String] = []
+        if config.alice != nil { exempt.append("/v1/alice") }
+        if config.smartHome != nil {
+            exempt.append("/v1/smart-home")
+            exempt.append("/v1.0")
+        }
         router.add(middleware: BearerAuthMiddleware(
             token: config.token,
-            exemptPrefixes: config.alice.map { _ in ["/v1/alice"] } ?? []
+            exemptPrefixes: exempt
         ))
+
+        if let smartHome = config.smartHome {
+            SmartHomeRoutes.register(router: router, config: smartHome)
+        }
 
         if let alice = config.alice {
             // Секрет в пути: Яндекс заголовков не шлёт, а публиковать
