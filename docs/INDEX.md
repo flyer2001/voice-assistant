@@ -39,3 +39,9 @@
 - [Whisper / Gemma / Apple Speech benchmark plan](whisper-benchmark-plan.md) —
   методология из HYP-028, корпус quiet/noisy, GSM-band emulation. Отложен:
   MVP работает на large-v3
+
+## Планы
+
+- [Пуш на колонку через навык умного дома](plans/2026-10-04-alice-smart-home-push.md) —
+  виртуальная лампочка + сценарий «звук на Станции», чтобы колонка сама
+  подавала сигнал о новом сообщении в очереди
