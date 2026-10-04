@@ -72,6 +72,22 @@ struct SmartHomeOAuthStoreTests {
         #expect(make().isValid(token: token.accessToken) == false)
     }
 
+    @Test("файл с токеном недоступен другим пользователям")
+    func tokenFileIsPrivate() throws {
+        // Замечание из аудита agentops 04.10: файл лежал с правами 644, то
+        // есть токен связки читался любым пользователем VDS.
+        let path = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("oauth-\(UUID().uuidString).json")
+        let s = OAuthStore(path: path, login: "sergey", password: "s3cret",
+                           clientId: "yandex", clientSecret: "client-s3cret")
+        let code = s.issueCode(login: "sergey", password: "s3cret")!
+        _ = s.exchange(code: code, clientId: "yandex", clientSecret: "client-s3cret")
+
+        let perms = try FileManager.default.attributesOfItem(atPath: path.path)[.posixPermissions]
+        #expect((perms as? NSNumber)?.int16Value == 0o600,
+                "токен должен быть доступен только владельцу процесса")
+    }
+
     @Test("истёкший токен не признаётся")
     func rejectsExpiredToken() {
         let s = store()

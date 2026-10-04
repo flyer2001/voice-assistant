@@ -119,9 +119,12 @@ public final class OAuthStore: @unchecked Sendable {
     }
 
     private func persist(_ token: Stored) {
-        if let data = try? JSONEncoder().encode(token) {
-            try? data.write(to: path, options: .atomic)
-        }
+        guard let data = try? JSONEncoder().encode(token) else { return }
+        try? data.write(to: path, options: .atomic)
+        // Только владелец процесса: иначе токен связки читает любой
+        // пользователь машины (замечание аудита agentops 04.10).
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600],
+                                               ofItemAtPath: path.path)
     }
 
     static func randomToken() -> String {

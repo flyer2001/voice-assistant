@@ -408,9 +408,20 @@ let smartHomeConfig: SmartHomeConfig? = {
         }
     }
 
+    // ВАЖНО: callback подписывается OAuth-токеном ВЛАДЕЛЬЦА навыка, а не тем,
+    // что мы выдали Яндексу при связке. Токены двух направлений: нашим
+    // платформа спрашивает нас, этим мы сообщаем платформе. Получается по
+    // ссылке oauth.yandex.ru/authorize?response_type=token&client_id=c473ca268cd749d3a8371351a8f2bcbd
+    let yandexToken = env["SMART_HOME_YANDEX_TOKEN"] ?? ""
+
     let notifier = SmartHomeNotifier(
         state: state,
-        accessToken: { store.currentAccessToken },
+        // Нужны оба: без связки платформа не знает устройства, без токена
+        // владельца не примет наш callback.
+        accessToken: {
+            guard store.currentAccessToken != nil, !yandexToken.isEmpty else { return nil }
+            return yandexToken
+        },
         postState: postState,
         logError: { logger.error("\($0)") }
     )

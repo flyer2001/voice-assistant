@@ -32,7 +32,7 @@ public struct SmartHomeNotifier: Sendable {
     /// будет.
     public func signal() async {
         guard let token = accessToken() else {
-            logError("сигнал не отправлен: нет связки с платформой")
+            logError("сигнал не отправлен: нет связки с платформой или токена Диалогов")
             return
         }
 
