@@ -48,13 +48,18 @@ public struct SmartHomeConfig: Sendable {
     public let state: SmartHomeState
     public let deviceId: String
     public let deviceName: String
+    /// Поставить сообщение в голосовую очередь и мигнуть лампочкой.
+    /// Вызывается агентами через закрытую нашим токеном ручку.
+    public let announce: @Sendable (String) async -> Void
 
     public init(store: OAuthStore, state: SmartHomeState,
-                deviceId: String, deviceName: String) {
+                deviceId: String, deviceName: String,
+                announce: @escaping @Sendable (String) async -> Void = { _ in }) {
         self.store = store
         self.state = state
         self.deviceId = deviceId
         self.deviceName = deviceName
+        self.announce = announce
     }
 }
 

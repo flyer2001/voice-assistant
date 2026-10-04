@@ -15,7 +15,11 @@ public enum VoiceServiceApp {
         var exempt: [String] = []
         if config.alice != nil { exempt.append("/v1/alice") }
         if config.smartHome != nil {
-            exempt.append("/v1/smart-home")
+            // Точечно: только ручки, куда стучит сам Яндекс. Остальное под
+            // этим префиксом (например постановка сообщения с сигналом)
+            // обязано остаться за нашим токеном.
+            exempt.append("/v1/smart-home/auth")
+            exempt.append("/v1/smart-home/token")
             exempt.append("/v1.0")
         }
         router.add(middleware: BearerAuthMiddleware(

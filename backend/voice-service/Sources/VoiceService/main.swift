@@ -1,4 +1,8 @@
 import Foundation
+#if canImport(FoundationNetworking)
+// Linux: URLSession живёт в отдельном модуле.
+import FoundationNetworking
+#endif
 import Logging
 import VoiceServiceCore
 import VKAdapter
@@ -176,7 +180,48 @@ if env["VK_BOT_ENABLED"]?.lowercased() == "true" {
 // готовый текст. Годится для коротких команд — управления микрофоном в API
 // нет, пауза на размышление обрывает реплику. Подробности и ограничения:
 // docs/alice-skill-input.md.
-//
+
+// Ящик ответа. Агент кладёт текст файлом, человек просит «дай ответ» —
+// навык озвучивает. Так колонка отдаёт ответ голосом, хотя заговорить
+// первой не может. Пути объявлены здесь, а не внутри навыка: ими
+// пользуется и навык умного дома, который кладёт сообщения в ту же очередь.
+let answerFile = URL(fileURLWithPath:
+    env["ALICE_ANSWER_FILE"] ?? "/var/lib/voice-bot/alice-answer.txt")
+// Прочитанное живёт рядом: ящик не одноразовый, повтор нужен на случай
+// «не расслышал», но звучит с оговоркой.
+let readAnswerFile = answerFile.deletingPathExtension()
+    .appendingPathExtension("read")
+    .appendingPathExtension(answerFile.pathExtension)
+// Отметка времени последнего вопроса. Сравнение с датой ответа отличает
+// «ответ ещё готовится» от «нового ответа не будет» — на слух это разные
+// вещи, и без различия человек решает, что канал сломан.
+let questionMark = answerFile.deletingLastPathComponent()
+    .appendingPathComponent("alice-last-question")
+// Очередь: отдельный файл на сообщение, порядок по имени. Писателей много
+// и они независимы (разные сессии, cron), поэтому каталог с атомарным
+// переименованием, а не общий файл и не база: блокировки не нужны.
+let queueDir = answerFile.deletingLastPathComponent()
+    .appendingPathComponent("alice-outbox")
+// Прочитанное переезжает сюда, а не удаляется: архив стоит ничего, зато
+// отматывание назад потом добавляется без переделки хранения.
+let archiveDir = queueDir.appendingPathComponent("read")
+try? FileManager.default.createDirectory(at: archiveDir, withIntermediateDirectories: true)
+
+/// Сообщения очереди по порядку имён: имя начинается с времени записи.
+let queued: @Sendable () -> [URL] = {
+    let items = (try? FileManager.default.contentsOfDirectory(
+        at: queueDir, includingPropertiesForKeys: nil)) ?? []
+    return items.filter { $0.pathExtension == "txt" }.sorted { $0.path < $1.path }
+}
+
+/// Дата изменения файла или далёкое прошлое, если файла нет.
+/// `@Sendable`: вызывается из замыкания, которое уходит в другой поток.
+let mtime: @Sendable (URL) -> Date = { url in
+    (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
+        .flatMap { $0 } ?? .distantPast
+}
+
+
 // Включается ALICE_PATH_SECRET. Без него маршрут не поднимается.
 let aliceConfig: AliceConfig? = {
     guard let secret = env["ALICE_PATH_SECRET"], !secret.isEmpty else { return nil }
@@ -188,46 +233,6 @@ let aliceConfig: AliceConfig? = {
     let messenger = LiveHappyInjectMessenger()
     let logger = Logger(label: "alice")
     let peer = env["VK_BOT_OWNER_IDS"] ?? ""
-
-    // Ящик ответа. Агент кладёт текст файлом, человек просит «дай ответ» —
-    // навык озвучивает и опустошает. Так колонка отдаёт ответ голосом, хотя
-    // заговорить первой не может. Одноразовость нарочная: иначе на второй
-    // вопрос Алиса повторит прошлый ответ.
-    let answerFile = URL(fileURLWithPath:
-        env["ALICE_ANSWER_FILE"] ?? "/var/lib/voice-bot/alice-answer.txt")
-    // Прочитанное живёт рядом: ящик не одноразовый, повтор нужен на случай
-    // «не расслышал», но звучит с оговоркой.
-    let readAnswerFile = answerFile.deletingPathExtension()
-        .appendingPathExtension("read")
-        .appendingPathExtension(answerFile.pathExtension)
-    // Отметка времени последнего вопроса. Сравнение с датой ответа отличает
-    // «ответ ещё готовится» от «нового ответа не будет» — на слух это разные
-    // вещи, и без различия человек решает, что канал сломан.
-    let questionMark = answerFile.deletingLastPathComponent()
-        .appendingPathComponent("alice-last-question")
-    // Очередь: отдельный файл на сообщение, порядок по имени. Писателей много
-    // и они независимы (разные сессии, cron), поэтому каталог с атомарным
-    // переименованием, а не общий файл и не база: блокировки не нужны.
-    let queueDir = answerFile.deletingLastPathComponent()
-        .appendingPathComponent("alice-outbox")
-    // Прочитанное переезжает сюда, а не удаляется: архив стоит ничего, зато
-    // отматывание назад потом добавляется без переделки хранения.
-    let archiveDir = queueDir.appendingPathComponent("read")
-    try? FileManager.default.createDirectory(at: archiveDir, withIntermediateDirectories: true)
-
-    /// Сообщения очереди по порядку имён: имя начинается с времени записи.
-    let queued: @Sendable () -> [URL] = {
-        let items = (try? FileManager.default.contentsOfDirectory(
-            at: queueDir, includingPropertiesForKeys: nil)) ?? []
-        return items.filter { $0.pathExtension == "txt" }.sorted { $0.path < $1.path }
-    }
-
-    /// Дата изменения файла или далёкое прошлое, если файла нет.
-    /// `@Sendable`: вызывается из замыкания, которое уходит в другой поток.
-    let mtime: @Sendable (URL) -> Date = { url in
-        (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
-            .flatMap { $0 } ?? .distantPast
-    }
 
     return AliceConfig(
         pathSecret: secret,
@@ -355,6 +360,83 @@ if aliceConfig != nil {
     FileHandle.standardError.write(Data("навык Алисы включён\n".utf8))
 }
 
+// ── Навык умного дома — сигнал на колонку ────────────────────────────
+//
+// Навык Алисы не может заговорить первым, а сценарий умного дома может.
+// Поэтому схема двухтактная: мигаем виртуальной лампочкой, сценарий
+// проигрывает звук, человек говорит «дай ответ» и слушает очередь.
+// План — docs/plans/2026-10-04-alice-smart-home-push.md
+let smartHomeConfig: SmartHomeConfig? = {
+    guard let login = env["SMART_HOME_LOGIN"], !login.isEmpty,
+          let password = env["SMART_HOME_PASSWORD"], !password.isEmpty,
+          let clientId = env["SMART_HOME_CLIENT_ID"], !clientId.isEmpty,
+          let clientSecret = env["SMART_HOME_CLIENT_SECRET"], !clientSecret.isEmpty
+    else { return nil }
+
+    let logger = Logger(label: "smart-home")
+    let stateDir = answerFile.deletingLastPathComponent()
+    let store = OAuthStore(
+        path: stateDir.appendingPathComponent("smart-home-oauth.json"),
+        login: login, password: password,
+        clientId: clientId, clientSecret: clientSecret
+    )
+    let state = SmartHomeState(path: stateDir.appendingPathComponent("smart-home-state.json"))
+    let skillId = env["SMART_HOME_SKILL_ID"] ?? ""
+    let deviceId = env["SMART_HOME_DEVICE_ID"] ?? "voice-notify-1"
+
+    // Callback платформы: сообщаем, что состояние устройства изменилось.
+    // Токен — тот же, что платформа получила при связке.
+    let postState: @Sendable (Bool, String) async -> Int = { value, token in
+        guard !skillId.isEmpty,
+              let url = URL(string: "https://dialogs.yandex.net/api/v1/skills/\(skillId)/callback/state")
+        else { return 0 }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("OAuth \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("""
+        {"ts":\(Date().timeIntervalSince1970),"payload":{"user_id":"sergey","devices":[\
+        {"id":"\(deviceId)","capabilities":[{"type":"devices.capabilities.on_off",\
+        "state":{"instance":"on","value":\(value)}}]}]}}
+        """.utf8)
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            return (response as? HTTPURLResponse)?.statusCode ?? 0
+        } catch {
+            logger.error("callback не ушёл", metadata: ["error": .string("\(error)")])
+            return 0
+        }
+    }
+
+    let notifier = SmartHomeNotifier(
+        state: state,
+        accessToken: { store.currentAccessToken },
+        postState: postState,
+        logError: { logger.error("\($0)") }
+    )
+
+    return SmartHomeConfig(
+        store: store,
+        state: state,
+        deviceId: deviceId,
+        deviceName: env["SMART_HOME_DEVICE_NAME"] ?? "Уведомление",
+        announce: { text in
+            // Сообщение в ту же очередь, что и ответы: человек слушает её
+            // одной командой, независимо от того, кто написал.
+            let name = "\(Int(Date().timeIntervalSince1970))-announce.txt"
+            try? Data(text.utf8).write(to: queueDir.appendingPathComponent(name))
+            logger.info("сообщение поставлено", metadata: [
+                "chars": .stringConvertible(text.count)
+            ])
+            await notifier.signal()
+        }
+    )
+}()
+
+if smartHomeConfig != nil {
+    FileHandle.standardError.write(Data("навык умного дома включён\n".utf8))
+}
+
 let config = Configuration(
     token: baseConfig.token,
     replyProvider: baseConfig.replyProvider,
@@ -362,7 +444,8 @@ let config = Configuration(
     vkSendProvider: vkSendForConfig,
     requestLogger: baseConfig.requestLogger,
     audioLimits: baseConfig.audioLimits,
-    alice: aliceConfig
+    alice: aliceConfig,
+    smartHome: smartHomeConfig
 )
 let app = VoiceServiceApp.make(config: config, host: host, port: port)
 try await app.runService()

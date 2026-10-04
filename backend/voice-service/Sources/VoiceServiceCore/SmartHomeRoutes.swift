@@ -171,6 +171,22 @@ enum SmartHomeRoutes {
             """)
         }
 
+        // Постановка сообщения в очередь плюс сигнал на колонку. За нашим
+        // токеном: ручка дёргает звук в квартире, открывать её нельзя.
+        router.post("/v1/smart-home/announce") { request, _ -> Response in
+            struct Announce: Decodable { let text: String; let source: String? }
+            let body = try await request.body.collect(upTo: 64 * 1024)
+            guard let req = try? JSONDecoder().decode(Announce.self, from: Data(buffer: body)),
+                  !req.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                // Звонить без сообщения незачем: человек придёт слушать
+                // пустую очередь.
+                return errorResponse(.badRequest, error: "empty_text")
+            }
+            await config.announce(req.text)
+            return json("{\"ok\":true}")
+        }
+
         router.post("/v1.0/user/unlink") { request, _ -> Response in
             guard let token = bearer(request), config.store.isValid(token: token) else {
                 return errorResponse(.unauthorized, error: "unauthorized")
