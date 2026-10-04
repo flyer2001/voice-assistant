@@ -57,7 +57,8 @@ public enum VoiceServiceApp {
                 if case .accepted(let text) = outcome {
                     // Отвечаем не дожидаясь: у Диалогов 4.5 секунды на всё,
                     // включая сеть, а инжект в сессию столько не гарантирует.
-                    Task.detached { await alice.inject(text) }
+                    let src = AliceHandler.surface(req.meta?.client_id)
+                    Task.detached { await alice.inject(text, src) }
                 }
 
                 // Запрос готового ответа ждём на месте: это чтение ящика,

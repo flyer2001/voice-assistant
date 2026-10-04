@@ -27,7 +27,7 @@ struct AliceEndpointTests {
             token: "T",
             replyProvider: { _ in "unused" },
             alice: AliceConfig(pathSecret: secret, skillId: skillId,
-                               inject: { text in sink.add(text) })
+                               inject: { text, _ in sink.add(text) })
         ))
     }
 
@@ -142,7 +142,7 @@ struct AliceEndpointTests {
             token: "T",
             replyProvider: { _ in "unused" },
             alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
-                               inject: { text in sink.add(text) },
+                               inject: { text, _ in sink.add(text) },
                                takeAnswer: { box.take() })
         ))
         try await app.test(.router) { client in
@@ -175,7 +175,7 @@ struct AliceEndpointTests {
             token: "T",
             replyProvider: { _ in "unused" },
             alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
-                               inject: { text in sink.add(text) },
+                               inject: { text, _ in sink.add(text) },
                                takeAnswer: { box.take() })
         ))
         try await app.test(.router) { client in

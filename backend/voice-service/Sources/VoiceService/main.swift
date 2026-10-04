@@ -237,7 +237,7 @@ let aliceConfig: AliceConfig? = {
     return AliceConfig(
         pathSecret: secret,
         skillId: env["ALICE_SKILL_ID"],
-        inject: { text in
+        inject: { text, src in
             // Вопрос задан — помечаем время, чтобы «дай ответ» до готовности
             // отвечал «готовится», а не повтором прошлого.
             try? Data().write(to: questionMark)
@@ -250,7 +250,7 @@ let aliceConfig: AliceConfig? = {
             // куда отвечать. Колонка ответ не озвучит — навык не может
             // заговорить первым, поэтому ответ уходит обычными каналами.
             let header = [
-                "[voice from Sergey, src=alice-station, lang=ru, peer=\(peer)]",
+                "[voice from Sergey, src=\(src), lang=ru, peer=\(peer)]",
                 "[reply голосом в колонку: положи текст в \(answerFile.path) — Sergey скажет «дай ответ», Алиса озвучит и ящик опустеет]",
                 "[reply обычными каналами: voice-say / voice-reply-both <peer> \"<text>\"]",
                 "[details: docs/alice-skill-input.md]",
@@ -260,6 +260,7 @@ let aliceConfig: AliceConfig? = {
             do {
                 try await messenger.injectNoWait(text: header, targetCwd: cwd, targetSid: targetSid)
                 logger.info("реплика передана", metadata: [
+                    "src": .string(src),
                     "cwd": .string(cwd), "focus_source": .string(source),
                     "sid": .string(targetSid ?? "по cwd"),
                     "chars": .stringConvertible(text.count)

@@ -32,6 +32,23 @@ struct AliceHandlerTests {
         #expect(outcome == .accepted("запиши мысль про кэширование"))
     }
 
+    @Test("поверхность узнаётся по client_id")
+    func surfaceFromClientId() {
+        // Метатег src был жёсткой строкой «alice-station», пока других
+        // поверхностей не было. Теперь реплика приходит и с телефона, и
+        // различать их важно: «запиши мысль» дома и в метро — разный контекст.
+        #expect(AliceHandler.surface("ru.yandex.quasar.app/1.0 (Yandex Station)")
+                == "alice-station")
+        #expect(AliceHandler.surface("aliced/1.0 (Yandex Station Lite)") == "alice-station")
+        #expect(AliceHandler.surface("ru.yandex.searchplugin/7.16 (iPhone; iOS 18)")
+                == "alice-phone")
+        #expect(AliceHandler.surface("ru.yandex.mobile.search/1.0") == "alice-phone")
+        #expect(AliceHandler.surface("yandex.browser/24.1") == "alice-browser")
+        // Неизвестное не выдумываем: пусть будет видно, что не разобрали.
+        #expect(AliceHandler.surface("какой-то новый клиент") == "alice-unknown")
+        #expect(AliceHandler.surface(nil) == "alice-unknown")
+    }
+
     @Test("«дай ответ» — это запрос готового ответа, а не реплика в сессию")
     func answerRequestRecognised() {
         for phrase in ["дай ответ", "Дай ответ.", "дай ответ пожалуйста",

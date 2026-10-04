@@ -22,8 +22,15 @@ public struct AliceRequest: Decodable, Sendable {
         public let type: String?
     }
 
+    public struct Meta: Decodable, Sendable {
+        /// Чем говорят: приложение и устройство. Строка свободного вида,
+        /// например «ru.yandex.searchplugin/7.16 (iPhone; iOS 18)».
+        public let client_id: String?
+    }
+
     public let session: Session
     public let request: Request?
+    public let meta: Meta?
     public let version: String?
 }
 
@@ -135,11 +142,6 @@ public enum AliceHandler {
         return .accepted(text)
     }
 
-    /// Фразы, которыми человек просит озвучить готовый ответ.
-    ///
-    /// Нарочно узкий список: слово «ответ» само по себе встречается в обычных
-    /// репликах («запиши мысль про ответы сервиса»), и такую диктовку нельзя
-    /// принимать за просьбу прочитать ящик.
     /// Слова, которыми начинается обращение к навыку. Алиса иногда отдаёт их
     /// внутри `command` («скажи личному ассистенту дай ответ», живые случаи
     /// 2026-10-02), и без их снятия просьба не узнаётся.
@@ -161,6 +163,11 @@ public enum AliceHandler {
         return rest
     }
 
+    /// Фразы, которыми человек просит озвучить готовый ответ.
+    ///
+    /// Нарочно узкий список: слово «ответ» само по себе встречается в обычных
+    /// репликах («запиши мысль про ответы сервиса»), и такую диктовку нельзя
+    /// принимать за просьбу прочитать ящик.
     static func isAnswerRequest(_ text: String) -> Bool {
         let words = text.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -178,6 +185,25 @@ public enum AliceHandler {
             if normalized.hasPrefix(form) { return true }
         }
         return false
+    }
+
+    /// Откуда реплика. Метатег `src` был жёсткой строкой «alice-station»,
+    /// пока другой поверхности не было; теперь говорят и с телефона, и
+    /// контекст у этих реплик разный.
+    ///
+    /// Неизвестный клиент не угадываем: подставить «station» по умолчанию
+    /// значило бы молча выдавать новую поверхность за колонку.
+    public static func surface(_ clientId: String?) -> String {
+        let id = (clientId ?? "").lowercased()
+        if id.isEmpty { return "alice-unknown" }
+        if id.contains("quasar") || id.contains("station") || id.contains("aliced") {
+            return "alice-station"
+        }
+        if id.contains("searchplugin") || id.contains("mobile.search") {
+            return "alice-phone"
+        }
+        if id.contains("browser") { return "alice-browser" }
+        return "alice-unknown"
     }
 
     /// Ответ на «дай ответ»: либо текст из ящика, либо честное «пока нет».
