@@ -40,10 +40,18 @@ struct AliceHandlerTests {
         #expect(AliceHandler.surface("ru.yandex.quasar.app/1.0 (Yandex Station)")
                 == "alice-station")
         #expect(AliceHandler.surface("aliced/1.0 (Yandex Station Lite)") == "alice-station")
+        // Живой client_id Станции Стрит, снят 04.10. «mango» — кодовое имя
+        // модели: по нему при надобности различим Стрит и Лайт.
+        #expect(AliceHandler.surface("aliced/1.0 (Yandex mango; Linux 1.0)")
+                == "alice-station")
         #expect(AliceHandler.surface("ru.yandex.searchplugin/7.16 (iPhone; iOS 18)")
                 == "alice-phone")
         #expect(AliceHandler.surface("ru.yandex.mobile.search/1.0") == "alice-phone")
         #expect(AliceHandler.surface("yandex.browser/24.1") == "alice-browser")
+        // Живой client_id приложения «Дом с Алисой», снят 04.10 с iPhone.
+        // Ни searchplugin, ни quasar — на нём матчер и дал unknown.
+        #expect(AliceHandler.surface("com.yandex.iot/12618.0 (Apple iot_app_ios; iphone iOS 26.6.2)")
+                == "alice-phone")
         // Неизвестное не выдумываем: пусть будет видно, что не разобрали.
         #expect(AliceHandler.surface("какой-то новый клиент") == "alice-unknown")
         #expect(AliceHandler.surface(nil) == "alice-unknown")

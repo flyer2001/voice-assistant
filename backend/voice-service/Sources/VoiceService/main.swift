@@ -237,7 +237,12 @@ let aliceConfig: AliceConfig? = {
     return AliceConfig(
         pathSecret: secret,
         skillId: env["ALICE_SKILL_ID"],
-        inject: { text, src in
+        inject: { text, srcWithRaw in
+            // Приходит «ярлык|сырой client_id» — в шапку кладём ярлык, в
+            // журнал оба.
+            let parts = srcWithRaw.split(separator: "|", maxSplits: 1).map(String.init)
+            let src = parts.first ?? "alice-unknown"
+            let rawClient = parts.count > 1 ? parts[1] : ""
             // Вопрос задан — помечаем время, чтобы «дай ответ» до готовности
             // отвечал «готовится», а не повтором прошлого.
             try? Data().write(to: questionMark)
@@ -260,7 +265,7 @@ let aliceConfig: AliceConfig? = {
             do {
                 try await messenger.injectNoWait(text: header, targetCwd: cwd, targetSid: targetSid)
                 logger.info("реплика передана", metadata: [
-                    "src": .string(src),
+                    "src": .string(src), "client_id": .string(rawClient),
                     "cwd": .string(cwd), "focus_source": .string(source),
                     "sid": .string(targetSid ?? "по cwd"),
                     "chars": .stringConvertible(text.count)

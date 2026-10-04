@@ -57,8 +57,13 @@ public enum VoiceServiceApp {
                 if case .accepted(let text) = outcome {
                     // Отвечаем не дожидаясь: у Диалогов 4.5 секунды на всё,
                     // включая сеть, а инжект в сессию столько не гарантирует.
+                    // Ярлык плюс сырая строка: по ярлыку маршрутизируем, по
+                    // строке опознаём новые клиенты (живой случай: «Дом с
+                    // Алисой» дал alice-unknown, а чем он себя называет —
+                    // выяснить было нечем).
                     let src = AliceHandler.surface(req.meta?.client_id)
-                    Task.detached { await alice.inject(text, src) }
+                    let raw = req.meta?.client_id ?? ""
+                    Task.detached { await alice.inject(text, "\(src)|\(raw)") }
                 }
 
                 // Запрос готового ответа ждём на месте: это чтение ящика,

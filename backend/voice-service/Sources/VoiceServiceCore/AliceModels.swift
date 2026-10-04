@@ -199,7 +199,12 @@ public enum AliceHandler {
         if id.contains("quasar") || id.contains("station") || id.contains("aliced") {
             return "alice-station"
         }
-        if id.contains("searchplugin") || id.contains("mobile.search") {
+        // Приложения на телефоне: поиск Яндекса и «Дом с Алисой»
+        // (com.yandex.iot, снято живьём 04.10). Заодно ловим платформу,
+        // когда она написана в строке прямым текстом.
+        if id.contains("searchplugin") || id.contains("mobile.search")
+            || id.contains("yandex.iot") || id.contains("iphone")
+            || id.contains("android") {
             return "alice-phone"
         }
         if id.contains("browser") { return "alice-browser" }
