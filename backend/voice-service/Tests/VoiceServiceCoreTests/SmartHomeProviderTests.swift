@@ -36,6 +36,53 @@ struct SmartHomeProviderTests {
         [.authorization: "Bearer \(token)", .contentType: "application/json"]
     }
 
+    /// Приложение с собственным префиксом — так навык не занимает корень
+    /// чужого сайта.
+    private func makePrefixed(_ prefix: String) -> any ApplicationProtocol {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sh-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return VoiceServiceApp.make(config: Configuration(
+            token: "T",
+            replyProvider: { _ in "unused" },
+            smartHome: SmartHomeConfig(
+                store: OAuthStore(path: dir.appendingPathComponent("oauth.json"),
+                                  login: "sergey", password: "s3cret",
+                                  clientId: "yandex", clientSecret: "client-s3cret"),
+                state: SmartHomeState(path: dir.appendingPathComponent("state.json")),
+                deviceId: "notify-1", deviceName: "Уведомление",
+                basePath: prefix
+            )
+        ))
+    }
+
+    @Test("ручки живут под своим префиксом, а не в корне сайта")
+    func routesHonourBasePath() async throws {
+        // Домен делится с другим сервисом: занимать его /v1.0 нельзя.
+        try await makePrefixed("/alice-push").test(.router) { client in
+            try await client.execute(uri: "/alice-push/v1.0", method: .head) { response in
+                #expect(response.status == .ok)
+            }
+            // Со слешем на конце — платформа стучит именно так.
+            try await client.execute(uri: "/alice-push/v1.0/", method: .head) { response in
+                #expect(response.status == .ok)
+            }
+            try await client.execute(uri: "/alice-push/v1.0/user/devices",
+                                     method: .get) { response in
+                #expect(response.status == .unauthorized, "ручка есть, но закрыта")
+            }
+            try await client.execute(uri: "/alice-push/auth", method: .get) { response in
+                #expect(response.status == .ok, "форма авторизации тоже под префиксом")
+            }
+            // Корень сайта при этом свободен: обработчика там нет. Ответ
+            // 401, а не 404 — проверка токена стоит перед маршрутизацией и
+            // отбивает неизвестный путь раньше. Важно, что не обработали.
+            try await client.execute(uri: "/v1.0", method: .head) { response in
+                #expect(response.status != .ok, "корень чужого домена не занимаем")
+            }
+        }
+    }
+
     @Test("HEAD /v1.0 — проверка доступности, без авторизации")
     func pingIsOpen() async throws {
         let env = makeLinked()

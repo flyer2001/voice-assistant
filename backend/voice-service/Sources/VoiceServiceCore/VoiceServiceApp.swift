@@ -14,13 +14,14 @@ public enum VoiceServiceApp {
         // внутри обработчиков.
         var exempt: [String] = []
         if config.alice != nil { exempt.append("/v1/alice") }
-        if config.smartHome != nil {
+        if let smartHome = config.smartHome {
             // Точечно: только ручки, куда стучит сам Яндекс. Остальное под
             // этим префиксом (например постановка сообщения с сигналом)
             // обязано остаться за нашим токеном.
-            exempt.append("/v1/smart-home/auth")
-            exempt.append("/v1/smart-home/token")
-            exempt.append("/v1.0")
+            let base = smartHome.basePath
+            exempt.append("\(base)\(SmartHomeRoutes.authPath)")
+            exempt.append("\(base)\(SmartHomeRoutes.tokenPath)")
+            exempt.append("\(base)/v1.0")
         }
         router.add(middleware: BearerAuthMiddleware(
             token: config.token,

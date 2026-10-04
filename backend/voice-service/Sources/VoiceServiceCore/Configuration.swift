@@ -51,15 +51,25 @@ public struct SmartHomeConfig: Sendable {
     /// Поставить сообщение в голосовую очередь и мигнуть лампочкой.
     /// Вызывается агентами через закрытую нашим токеном ручку.
     public let announce: @Sendable (String) async -> Void
+    /// Префикс всех ручек навыка, например `/alice-push`. Домен делится с
+    /// другим сервисом, и занимать его корневой `/v1.0` нельзя. Пусто —
+    /// ручки в корне (так было до появления префикса).
+    public let basePath: String
 
     public init(store: OAuthStore, state: SmartHomeState,
                 deviceId: String, deviceName: String,
-                announce: @escaping @Sendable (String) async -> Void = { _ in }) {
+                announce: @escaping @Sendable (String) async -> Void = { _ in },
+                basePath: String = "") {
         self.store = store
         self.state = state
         self.deviceId = deviceId
         self.deviceName = deviceName
         self.announce = announce
+        // Нормализуем: ведущий слеш обязателен, конечный — лишний.
+        var prefix = basePath.trimmingCharacters(in: .whitespaces)
+        while prefix.hasSuffix("/") { prefix.removeLast() }
+        if !prefix.isEmpty && !prefix.hasPrefix("/") { prefix = "/" + prefix }
+        self.basePath = prefix
     }
 }
 

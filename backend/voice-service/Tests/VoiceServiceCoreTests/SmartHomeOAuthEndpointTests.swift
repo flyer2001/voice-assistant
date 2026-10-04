@@ -20,7 +20,8 @@ struct SmartHomeOAuthEndpointTests {
                                   clientId: "yandex", clientSecret: "client-s3cret"),
                 state: SmartHomeState(path: dir.appendingPathComponent("state.json")),
                 deviceId: "notify-1",
-                deviceName: "Уведомление"
+                deviceName: "Уведомление",
+                basePath: "/alice-push"
             )
         ))
     }
@@ -30,7 +31,7 @@ struct SmartHomeOAuthEndpointTests {
     func authFormRendered() async throws {
         try await makeApp().test(.router) { client in
             try await client.execute(
-                uri: "/v1/smart-home/auth?state=abc&client_id=yandex&redirect_uri=https%3A%2F%2Fsocial.yandex.net%2Fbroker%2Fredirect&response_type=code",
+                uri: "/alice-push/auth?state=abc&client_id=yandex&redirect_uri=https%3A%2F%2Fsocial.yandex.net%2Fbroker%2Fredirect&response_type=code",
                 method: .get
             ) { response in
                 #expect(response.status == .ok)
@@ -46,7 +47,7 @@ struct SmartHomeOAuthEndpointTests {
     func validLoginRedirects() async throws {
         try await makeApp().test(.router) { client in
             try await client.execute(
-                uri: "/v1/smart-home/auth", method: .post,
+                uri: "/alice-push/auth", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: "login=sergey&password=s3cret&state=abc&redirect_uri=https://social.yandex.net/broker/redirect")
             ) { response in
@@ -63,7 +64,7 @@ struct SmartHomeOAuthEndpointTests {
     func wrongPasswordRejected() async throws {
         try await makeApp().test(.router) { client in
             try await client.execute(
-                uri: "/v1/smart-home/auth", method: .post,
+                uri: "/alice-push/auth", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: "login=sergey&password=подобранный&state=abc&redirect_uri=https://social.yandex.net/broker/redirect")
             ) { response in
@@ -79,7 +80,7 @@ struct SmartHomeOAuthEndpointTests {
         try await makeApp().test(.router) { client in
             var code = ""
             try await client.execute(
-                uri: "/v1/smart-home/auth", method: .post,
+                uri: "/alice-push/auth", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: "login=sergey&password=s3cret&state=abc&redirect_uri=https://social.yandex.net/broker/redirect")
             ) { response in
@@ -91,7 +92,7 @@ struct SmartHomeOAuthEndpointTests {
 
             let form = "grant_type=authorization_code&code=\(code)&client_id=yandex&client_secret=client-s3cret"
             try await client.execute(
-                uri: "/v1/smart-home/token", method: .post,
+                uri: "/alice-push/token", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: form)
             ) { response in
@@ -104,7 +105,7 @@ struct SmartHomeOAuthEndpointTests {
 
             // Перехваченный редирект не должен переигрываться.
             try await client.execute(
-                uri: "/v1/smart-home/token", method: .post,
+                uri: "/alice-push/token", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: form)
             ) { response in
@@ -118,7 +119,7 @@ struct SmartHomeOAuthEndpointTests {
         try await makeApp().test(.router) { client in
             var code = ""
             try await client.execute(
-                uri: "/v1/smart-home/auth", method: .post,
+                uri: "/alice-push/auth", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: "login=sergey&password=s3cret&state=abc&redirect_uri=https://social.yandex.net/broker/redirect")
             ) { response in
@@ -127,7 +128,7 @@ struct SmartHomeOAuthEndpointTests {
                     .components(separatedBy: "&").first ?? ""
             }
             try await client.execute(
-                uri: "/v1/smart-home/token", method: .post,
+                uri: "/alice-push/token", method: .post,
                 headers: [.contentType: "application/x-www-form-urlencoded"],
                 body: ByteBuffer(string: "grant_type=authorization_code&code=\(code)&client_id=yandex&client_secret=подобранный")
             ) { response in
@@ -142,7 +143,7 @@ struct SmartHomeOAuthEndpointTests {
             token: "T", replyProvider: { _ in "unused" }
         ))
         try await app.test(.router) { client in
-            try await client.execute(uri: "/v1/smart-home/auth", method: .get) { response in
+            try await client.execute(uri: "/alice-push/auth", method: .get) { response in
                 #expect(response.status != .ok, "главное — не обработать")
             }
         }

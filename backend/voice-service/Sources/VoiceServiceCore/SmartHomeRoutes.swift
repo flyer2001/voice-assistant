@@ -25,16 +25,23 @@ enum SmartHomeRoutes {
         s.replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? s
     }
 
+    /// Пути внутри префикса. Без префикса получаются прежние адреса, так
+    /// что старые настройки в консоли не ломаются.
+    static let authPath = "/auth"
+    static let tokenPath = "/token"
+    static let announcePath = "/announce"
+
     /// Форма логина. Без JS и без стилей: её видит один человек один раз,
     /// при привязке навыка.
-    static func authForm(state: String, redirectUri: String, clientId: String) -> String {
+    static func authForm(state: String, redirectUri: String, clientId: String,
+                         action: String) -> String {
         """
         <!doctype html><html lang="ru"><head><meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Привязка навыка</title></head>
         <body style="font-family:system-ui;max-width:28rem;margin:4rem auto;padding:0 1rem">
         <h1>Привязка навыка умного дома</h1>
-        <form method="post" action="/v1/smart-home/auth">
+        <form method="post" action="\(action)">
         <input type="hidden" name="state" value="\(htmlEscaped(state))">
         <input type="hidden" name="redirect_uri" value="\(htmlEscaped(redirectUri))">
         <input type="hidden" name="client_id" value="\(htmlEscaped(clientId))">
@@ -97,17 +104,18 @@ enum SmartHomeRoutes {
     }
 
     static func register(router: Router<BasicRequestContext>, config: SmartHomeConfig) {
+        let base = config.basePath
 
         // Проба доступности. Платформа стучит в неё до связки аккаунта,
         // поэтому авторизации тут нет.
-        router.on("/v1.0", method: .head) { _, _ -> Response in
+        router.on("\(base)/v1.0", method: .head) { _, _ -> Response in
             Response(status: .ok)
         }
-        router.get("/v1.0") { _, _ -> Response in
+        router.get("\(base)/v1.0") { _, _ -> Response in
             Response(status: .ok)
         }
 
-        router.get("/v1.0/user/devices") { request, _ -> Response in
+        router.get("\(base)/v1.0/user/devices") { request, _ -> Response in
             guard let token = bearer(request), config.store.isValid(token: token) else {
                 return errorResponse(.unauthorized, error: "unauthorized")
             }
@@ -122,7 +130,7 @@ enum SmartHomeRoutes {
             """)
         }
 
-        router.post("/v1.0/user/devices/query") { request, _ -> Response in
+        router.post("\(base)/v1.0/user/devices/query") { request, _ -> Response in
             guard let token = bearer(request), config.store.isValid(token: token) else {
                 return errorResponse(.unauthorized, error: "unauthorized")
             }
@@ -142,7 +150,7 @@ enum SmartHomeRoutes {
             """)
         }
 
-        router.post("/v1.0/user/devices/action") { request, _ -> Response in
+        router.post("\(base)/v1.0/user/devices/action") { request, _ -> Response in
             guard let token = bearer(request), config.store.isValid(token: token) else {
                 return errorResponse(.unauthorized, error: "unauthorized")
             }
@@ -173,7 +181,7 @@ enum SmartHomeRoutes {
 
         // Постановка сообщения в очередь плюс сигнал на колонку. За нашим
         // токеном: ручка дёргает звук в квартире, открывать её нельзя.
-        router.post("/v1/smart-home/announce") { request, _ -> Response in
+        router.post("\(base)\(announcePath)") { request, _ -> Response in
             struct Announce: Decodable { let text: String; let source: String? }
             let body = try await request.body.collect(upTo: 64 * 1024)
             guard let req = try? JSONDecoder().decode(Announce.self, from: Data(buffer: body)),
@@ -187,7 +195,7 @@ enum SmartHomeRoutes {
             return json("{\"ok\":true}")
         }
 
-        router.post("/v1.0/user/unlink") { request, _ -> Response in
+        router.post("\(base)/v1.0/user/unlink") { request, _ -> Response in
             guard let token = bearer(request), config.store.isValid(token: token) else {
                 return errorResponse(.unauthorized, error: "unauthorized")
             }
@@ -197,12 +205,13 @@ enum SmartHomeRoutes {
             return json("{\"request_id\":\"\(requestId(request))\"}")
         }
 
-        router.get("/v1/smart-home/auth") { request, _ -> Response in
+        router.get("\(base)\(authPath)") { request, _ -> Response in
             let query = request.uri.queryParameters
             let html = authForm(
                 state: query["state"].map(String.init) ?? "",
                 redirectUri: query["redirect_uri"].map(String.init) ?? "",
-                clientId: query["client_id"].map(String.init) ?? ""
+                clientId: query["client_id"].map(String.init) ?? "",
+                action: "\(base)\(authPath)"
             )
             var response = Response(status: .ok,
                                     body: .init(byteBuffer: ByteBuffer(string: html)))
@@ -210,7 +219,7 @@ enum SmartHomeRoutes {
             return response
         }
 
-        router.post("/v1/smart-home/auth") { request, _ -> Response in
+        router.post("\(base)\(authPath)") { request, _ -> Response in
             let body = try await request.body.collect(upTo: 16 * 1024)
             let fields = formFields(String(buffer: body))
 
@@ -229,7 +238,7 @@ enum SmartHomeRoutes {
             return response
         }
 
-        router.post("/v1/smart-home/token") { request, _ -> Response in
+        router.post("\(base)\(tokenPath)") { request, _ -> Response in
             let body = try await request.body.collect(upTo: 16 * 1024)
             let fields = formFields(String(buffer: body))
             let clientId = fields["client_id"] ?? ""

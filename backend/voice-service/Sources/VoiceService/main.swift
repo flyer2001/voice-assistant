@@ -429,7 +429,10 @@ let smartHomeConfig: SmartHomeConfig? = {
                 "chars": .stringConvertible(text.count)
             ])
             await notifier.signal()
-        }
+        },
+        // Свой префикс: домен делится с игрой, занимать её корневой /v1.0
+        // нельзя. Платформа добавит /v1.0/... сама.
+        basePath: env["SMART_HOME_BASE_PATH"] ?? "/alice-push"
     )
 }()
 

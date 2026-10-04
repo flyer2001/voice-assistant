@@ -28,7 +28,8 @@ struct SmartHomeAnnounceTests {
                 state: SmartHomeState(path: dir.appendingPathComponent("state.json")),
                 deviceId: "notify-1",
                 deviceName: "Уведомление",
-                announce: { text in calls.add(text) }
+                announce: { text in calls.add(text) },
+                basePath: "/alice-push"
             )
         ))
     }
@@ -37,12 +38,12 @@ struct SmartHomeAnnounceTests {
     func announceRequiresOurToken() async throws {
         // Послабление в авторизации должно действовать только на ручки, куда
         // стучит Яндекс: /auth, /token и /v1.0. Всё остальное под префиксом
-        // /v1/smart-home обязано остаться за нашим токеном — иначе любой
-        // желающий дёргает колонку.
+        // навыка обязано остаться за нашим токеном — иначе любой желающий
+        // дёргает колонку.
         let calls = Calls()
         try await makeApp(calls: calls).test(.router) { client in
             try await client.execute(
-                uri: "/v1/smart-home/announce", method: .post,
+                uri: "/alice-push/announce", method: .post,
                 headers: [.contentType: "application/json"],
                 body: ByteBuffer(string: #"{"text":"посторонний","source":"злоумышленник"}"#)
             ) { response in
@@ -57,7 +58,7 @@ struct SmartHomeAnnounceTests {
         let calls = Calls()
         try await makeApp(calls: calls).test(.router) { client in
             try await client.execute(
-                uri: "/v1/smart-home/announce", method: .post,
+                uri: "/alice-push/announce", method: .post,
                 headers: [.authorization: "Bearer T", .contentType: "application/json"],
                 body: ByteBuffer(string: #"{"text":"слой ждёт коммита","source":"авито"}"#)
             ) { response in
@@ -72,7 +73,7 @@ struct SmartHomeAnnounceTests {
         let calls = Calls()
         try await makeApp(calls: calls).test(.router) { client in
             try await client.execute(
-                uri: "/v1/smart-home/announce", method: .post,
+                uri: "/alice-push/announce", method: .post,
                 headers: [.authorization: "Bearer T", .contentType: "application/json"],
                 body: ByteBuffer(string: #"{"text":"   ","source":"авито"}"#)
             ) { response in
