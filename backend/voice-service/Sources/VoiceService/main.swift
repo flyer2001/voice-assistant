@@ -200,6 +200,11 @@ let questionMark = answerFile.deletingLastPathComponent()
 // Очередь: отдельный файл на сообщение, порядок по имени. Писателей много
 // и они независимы (разные сессии, cron), поэтому каталог с атомарным
 // переименованием, а не общий файл и не база: блокировки не нужны.
+// Тихий режим: сигнал на колонку не отправляется, сообщения копятся.
+// Флаг файлом, а не в памяти — рестарт не должен внезапно вернуть озвучку.
+let quietFlag = answerFile.deletingLastPathComponent()
+    .appendingPathComponent("alice-quiet")
+
 let queueDir = answerFile.deletingLastPathComponent()
     .appendingPathComponent("alice-outbox")
 // Прочитанное переезжает сюда, а не удаляется: архив стоит ничего, зато
@@ -358,6 +363,16 @@ let aliceConfig: AliceConfig? = {
                 "removed": .stringConvertible(items.count)
             ])
             return items.count
+        },
+        setQuiet: { quiet in
+            // Файлом, а не в памяти: если человек сказал «тихо» перед
+            // совещанием, деплой не должен вернуть озвучку.
+            if quiet {
+                try? Data().write(to: quietFlag)
+            } else {
+                try? FileManager.default.removeItem(at: quietFlag)
+            }
+            logger.info(quiet ? "озвучка выключена" : "озвучка включена")
         }
     )
 }()
@@ -442,10 +457,14 @@ let smartHomeConfig: SmartHomeConfig? = {
             // одной командой, независимо от того, кто написал.
             let name = "\(Int(Date().timeIntervalSince1970))-announce.txt"
             try? Data(text.utf8).write(to: queueDir.appendingPathComponent(name))
+            let quiet = FileManager.default.fileExists(atPath: quietFlag.path)
             logger.info("сообщение поставлено", metadata: [
-                "chars": .stringConvertible(text.count)
+                "chars": .stringConvertible(text.count),
+                "quiet": .stringConvertible(quiet)
             ])
-            await notifier.signal()
+            // В тихом режиме гасим только сигнал: сообщение уже в очереди и
+            // никуда не денется, человек послушает когда удобно.
+            if !quiet { await notifier.signal() }
         },
         // Свой префикс: домен делится с игрой, занимать её корневой /v1.0
         // нельзя. Платформа добавит /v1.0/... сама.

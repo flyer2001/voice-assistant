@@ -95,6 +95,10 @@ public enum AliceOutcome: Equatable, Sendable {
     case repeatRequest
     /// Выбросить очередь.
     case clearRequest
+    /// Перестать озвучивать сообщения сами собой — сигнал не отправляется.
+    case muteRequest
+    /// Снова озвучивать.
+    case unmuteRequest
 }
 
 public enum AliceHandler {
@@ -120,6 +124,12 @@ public enum AliceHandler {
         if ["повтори", "повтори ответ", "повтори ещё раз", "ещё раз",
             "повтори пожалуйста"].contains(stripped) {
             return .repeatRequest
+        }
+        if ["тихо", "тихий режим", "замолчи", "молчи", "не говори"].contains(stripped) {
+            return .muteRequest
+        }
+        if ["громко", "можно говорить", "говори вслух", "говори"].contains(stripped) {
+            return .unmuteRequest
         }
         if ["очисти", "очисти очередь", "очистить очередь", "забудь",
             "забудь всё", "забудь все", "удали все сообщения",
@@ -236,6 +246,15 @@ public enum AliceHandler {
                              tts: spoken + tail(answer?.remaining ?? 0))
     }
 
+    /// Что сказать после переключения озвучки. Состояние называем словами:
+    /// человек должен услышать, в каком режиме остался.
+    public static func quietReply(quiet: Bool) -> AliceResponse {
+        let spoken = quiet
+            ? "Молчу. Сообщения копятся, спроси когда будет удобно."
+            : "Снова читаю вслух."
+        return AliceResponse(text: spoken, tts: spoken)
+    }
+
     /// Что сказать после очистки. Число называем: человек должен услышать,
     /// что именно выбросили, — команда необратимая.
     public static func clearReply(removed: Int) -> AliceResponse {
@@ -287,6 +306,10 @@ public enum AliceHandler {
             return answerReply(nil)
         case .clearRequest:
             return clearReply(removed: 0)
+        case .muteRequest:
+            return quietReply(quiet: true)
+        case .unmuteRequest:
+            return quietReply(quiet: false)
         }
     }
 }

@@ -137,6 +137,30 @@ struct AliceHandlerTests {
         #expect(AliceHandler.decide(req(command: "дальше")) == .answerRequest)
     }
 
+    @Test("«тихо» и «громко» переключают озвучку")
+    func quietCommands() {
+        // Сценарий теперь читает вслух всё, что положено в очередь. Нужен
+        // выключатель: ночью и при людях озвучка неуместна.
+        for phrase in ["тихо", "Тихо.", "тихий режим", "замолчи",
+                       "попроси личного ассистента тихо"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .muteRequest,
+                    "«\(phrase)» должно выключать озвучку")
+        }
+        for phrase in ["громко", "можно говорить", "говори вслух"] {
+            #expect(AliceHandler.decide(req(command: phrase)) == .unmuteRequest,
+                    "«\(phrase)» должно включать озвучку")
+        }
+        // Диктовка про тишину остаётся репликой.
+        #expect(AliceHandler.decide(req(command: "запиши мысль про тихий час"))
+                == .accepted("запиши мысль про тихий час"))
+    }
+
+    @Test("ответ на переключение называет новое состояние")
+    func quietReply() {
+        #expect(AliceHandler.quietReply(quiet: true).response.text.contains("копятся"))
+        #expect(AliceHandler.quietReply(quiet: false).response.text.contains("вслух"))
+    }
+
     @Test("«очисти» выбрасывает очередь")
     func clearCommand() {
         for phrase in ["очисти", "очисти очередь", "забудь всё", "удали все сообщения"] {

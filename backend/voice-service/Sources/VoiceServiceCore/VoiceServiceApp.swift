@@ -76,6 +76,12 @@ public enum VoiceServiceApp {
                     reply = AliceHandler.answerReply(await alice.repeatLast())
                 case .clearRequest:
                     reply = AliceHandler.clearReply(removed: await alice.clearQueue())
+                case .muteRequest:
+                    await alice.setQuiet(true)
+                    reply = AliceHandler.quietReply(quiet: true)
+                case .unmuteRequest:
+                    await alice.setQuiet(false)
+                    reply = AliceHandler.quietReply(quiet: false)
                 default:
                     reply = AliceHandler.reply(for: outcome)
                 }

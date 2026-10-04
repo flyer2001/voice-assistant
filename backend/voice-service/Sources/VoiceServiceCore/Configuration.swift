@@ -96,19 +96,24 @@ public struct AliceConfig: Sendable {
     public let repeatLast: @Sendable () async -> AliceAnswer?
     /// Выбросить очередь, вернув число убранных сообщений.
     public let clearQueue: @Sendable () async -> Int
+    /// Включить или выключить озвучку сообщений колонкой. Гасит сигнал, а не
+    /// очередь: сообщения копятся, человек слушает когда удобно.
+    public let setQuiet: @Sendable (Bool) async -> Void
 
     public init(pathSecret: String,
                 skillId: String? = nil,
                 inject: @escaping @Sendable (String, String) async -> Void,
                 takeAnswer: @escaping @Sendable () async -> AliceAnswer? = { nil },
                 repeatLast: @escaping @Sendable () async -> AliceAnswer? = { nil },
-                clearQueue: @escaping @Sendable () async -> Int = { 0 }) {
+                clearQueue: @escaping @Sendable () async -> Int = { 0 },
+                setQuiet: @escaping @Sendable (Bool) async -> Void = { _ in }) {
         self.pathSecret = pathSecret
         self.skillId = skillId
         self.inject = inject
         self.takeAnswer = takeAnswer
         self.repeatLast = repeatLast
         self.clearQueue = clearQueue
+        self.setQuiet = setQuiet
     }
 }
 
