@@ -27,6 +27,14 @@ INJECT="$HOME/projects/assistant/scripts/inject/inject.mjs"
 WHISPER="${VOICE_WHISPER_URL:-http://192.168.88.13:8000}"
 PROMPT_FILE="${VOICE_PROMPT_FILE:-}"
 REC_DIR="${VOICE_REC_DIR:-\$HOME/Movies}"
+# Дорожек в записи. 1 — как было: всё в одном миксе, без разметки по спикерам.
+# 2 — OBS в Advanced-режиме пишет звук приложения в дорожку 1, микрофон в
+# дорожку 2 (RecTracks=3). Тогда «ты» и «остальные» разделяются бесплатно,
+# без диаризации: дорожка 2 по построению содержит только твой голос.
+# Если дорожки 2 в файле нет (OBS не перенастроен), хвост сам откатится на 1.
+TRACKS="${VOICE_TRACKS:-1}"
+T1_LABEL="${VOICE_TRACK1_LABEL:-эфир}"
+T2_LABEL="${VOICE_TRACK2_LABEL:-Сергей}"
 
 FFMPEG_MAC="export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; ffmpeg"
 
@@ -181,39 +189,70 @@ while true; do
   fi
   IDLE=0
 
-  W="$TMP/c.wav"
-  ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
-    "export PATH=/opt/homebrew/bin:\$PATH; ffmpeg -v error -ss $POS -t $CHUNK_S -i '$REC' -vn -ar 16000 -ac 1 -f wav -" \
-    > "$W" 2>/dev/null
-  if [ ! -s "$W" ]; then
-    echo "$(date +%H:%M:%S) пустой кусок на $POS, повтор через 10с"
-    sleep 10
-    continue
-  fi
-
-  # Код ответа нужен отдельно от тела: пустой .text при 200 — настоящая
-  # тишина, пустой при 500 — сломанное распознавание. Раньше обе ситуации
-  # писались в лог одной строкой, и поломка была невидима (2026-09-24:
-  # CUDA умерла после suspend, /health продолжал отдавать 200, потеряли
-  # дейлик целиком).
-  RESP="$(curl -s --max-time 120 -w $'\n%{http_code}' -F "audio=@$W" -F "lang_hint=ru" \
-          "${PROMPT_ARG[@]}" "$WHISPER/transcribe")"
-  CODE="${RESP##*$'\n'}"
-  BODY="${RESP%$'\n'*}"
-  TEXT="$(printf '%s' "$BODY" | jq -r '.text // empty' 2>/dev/null)"
-
   TC=$(printf '%02d:%02d:%02d' $((POS/3600)) $((POS%3600/60)) $((POS%60)))
-  if [ -n "$TEXT" ]; then
-    printf '**[%s]** %s\n\n' "$TC" "$TEXT" >> "$OUT"
-    echo "$(date +%H:%M:%S) [$TC] ${#TEXT} символов"
-    [ -z "$BUF_FROM" ] && BUF_FROM="$TC"
-    BUF="$BUF $TEXT"
+  GOT_ANY=""
+
+  for TRACK in $(seq 1 "$TRACKS"); do
+    W="$TMP/c$TRACK.wav"
+    # -map 0:a:N — именно дорожка, а не «весь звук»: без него ffmpeg берёт
+    # первый аудиопоток и разделение теряется.
+    ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
+      "export PATH=/opt/homebrew/bin:\$PATH; ffmpeg -v error -ss $POS -t $CHUNK_S -i '$REC' -map 0:a:$((TRACK - 1)) -vn -ar 16000 -ac 1 -f wav -" \
+      > "$W" 2>/dev/null
+
+    if [ ! -s "$W" ]; then
+      # Дорожки 2 в файле нет — OBS пишет одной. Откатываемся навсегда, иначе
+      # каждый чанк будет тратить лишний ssh и писать ложную ошибку.
+      if [ "$TRACK" -eq 2 ]; then
+        echo "$(date +%H:%M:%S) дорожки 2 в записи нет — дальше работаю одной (OBS не в Advanced?)"
+        TRACKS=1
+        continue
+      fi
+      echo "$(date +%H:%M:%S) пустой кусок на $POS, повтор через 10с"
+      sleep 10
+      continue 2
+    fi
+
+    # Код ответа нужен отдельно от тела: пустой .text при 200 — настоящая
+    # тишина, пустой при 500 — сломанное распознавание. Раньше обе ситуации
+    # писались в лог одной строкой, и поломка была невидима (2026-09-24:
+    # CUDA умерла после suspend, /health продолжал отдавать 200, потеряли
+    # дейлик целиком).
+    RESP="$(curl -s --max-time 120 -w $'\n%{http_code}' -F "audio=@$W" -F "lang_hint=ru" \
+            "${PROMPT_ARG[@]}" "$WHISPER/transcribe")"
+    CODE="${RESP##*$'\n'}"
+    BODY="${RESP%$'\n'*}"
+    TEXT="$(printf '%s' "$BODY" | jq -r '.text // empty' 2>/dev/null)"
+
+    # Метка спикера нужна только когда дорожек правда две: в одномиксовом
+    # режиме «эфир» перед каждой строкой — шум, а не информация.
+    if [ "$TRACKS" -eq 1 ]; then LABEL=""; elif [ "$TRACK" -eq 1 ]; then LABEL="$T1_LABEL"; else LABEL="$T2_LABEL"; fi
+
+    if [ -n "$TEXT" ]; then
+      if [ -n "$LABEL" ]; then
+        printf '**[%s]** _%s:_ %s\n\n' "$TC" "$LABEL" "$TEXT" >> "$OUT"
+        echo "$(date +%H:%M:%S) [$TC] $LABEL: ${#TEXT} символов"
+        BUF="$BUF
+$LABEL: $TEXT"
+      else
+        printf '**[%s]** %s\n\n' "$TC" "$TEXT" >> "$OUT"
+        echo "$(date +%H:%M:%S) [$TC] ${#TEXT} символов"
+        BUF="$BUF $TEXT"
+      fi
+      [ -z "$BUF_FROM" ] && BUF_FROM="$TC"
+      GOT_ANY=1
+    elif [ "$CODE" = "200" ]; then
+      echo "$(date +%H:%M:%S) [$TC] ${LABEL:+$LABEL: }тишина"
+    else
+      echo "$(date +%H:%M:%S) [$TC] ${LABEL:+$LABEL: }ОШИБКА whisper HTTP $CODE: $(printf '%s' "$BODY" | head -c 200)"
+    fi
+  done
+
+  # Счётчик по чанкам, не по дорожкам: иначе при двух дорожках блоки уходили
+  # бы вдвое чаще заданного INJECT_EVERY.
+  if [ -n "$GOT_ANY" ]; then
     CHUNKS_IN_BUF=$((CHUNKS_IN_BUF + 1))
     [ "$CHUNKS_IN_BUF" -ge "$INJECT_EVERY" ] && flush_buffer "$TC"
-  elif [ "$CODE" = "200" ]; then
-    echo "$(date +%H:%M:%S) [$TC] тишина"
-  else
-    echo "$(date +%H:%M:%S) [$TC] ОШИБКА whisper HTTP $CODE: $(printf '%s' "$BODY" | head -c 200)"
   fi
   POS=$((POS + CHUNK_S))
 done
