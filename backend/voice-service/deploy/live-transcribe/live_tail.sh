@@ -14,6 +14,8 @@ set -uo pipefail
 HOST="${1:?ssh-хост с записью}"
 OUTDIR="${2:?каталог для конспектов}"
 mkdir -p "$OUTDIR"
+# Вердикт «растёт ли запись» — отдельным файлом, он под тестом.
+. "$(cd "$(dirname "$0")" && pwd)/lib_growth.sh"
 CHUNK_S="${VOICE_CHUNK_S:-20}"
 # Каждые сколько чанков инжектить накопленное в сессию-слушателя.
 # 4 чанка по 20с = блок ~80 секунд речи, ~30 инжектов на часовой доклад.
@@ -177,22 +179,27 @@ PROMPT_ARG=()
 while true; do
   # Сколько уже записано. ffprobe на недописанном mkv занижает длительность
   # безопасно — просто подождём следующего круга.
-  DUR="$(ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
+  # Код возврата ssh нужен отдельно от числа: при упавшем туннеле DUR пуст, и
+  # раньше это читалось как «0 секунд записано» — шесть таких кругов, и живая
+  # запись закрывалась как остановленная (2026-10-08, потеряли 14 минут
+  # дейлика). Решение — в lib_growth.sh, под тестом.
+  RAW="$(ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
     "export PATH=/opt/homebrew/bin:\$PATH; ffprobe -v error -show_entries format=duration -of csv=p=0 '$REC'" \
-    2>/dev/null | cut -d. -f1)"
-  DUR="${DUR:-0}"
+    2>/dev/null)"; SSH_RC=$?
+  DUR="${RAW%%.*}"
 
-  if [ $((DUR - POS)) -lt "$CHUNK_S" ]; then
-    IDLE=$((IDLE + 1))
-    # Полторы минуты без новых данных — запись остановлена.
-    if [ "$IDLE" -ge 6 ]; then
+  read -r VERDICT IDLE <<<"$(growth_verdict "$SSH_RC" "$DUR" "$POS" "$CHUNK_S" "$IDLE")"
+  case "$VERDICT" in
+    ssh_fail)
+      echo "$(date +%H:%M:%S) ssh до $HOST не ответил (rc=$SSH_RC), запись не закрываю, жду"
+      sleep 15; continue ;;
+    wait)
+      sleep 15; continue ;;
+    close)
+      # Полторы минуты без новых данных при живом ssh — запись остановлена.
       echo "$(date +%H:%M:%S) запись не растёт, закрываю $BASE"
-      break
-    fi
-    sleep 15
-    continue
-  fi
-  IDLE=0
+      break ;;
+  esac
 
   TC=$(printf '%02d:%02d:%02d' $((POS/3600)) $((POS%3600/60)) $((POS%60)))
   GOT_ANY=""
