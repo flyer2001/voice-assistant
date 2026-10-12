@@ -143,6 +143,35 @@ MuseLab NanoESP32-C6 v1.0, ESP32-C6-WROOM-1-N8, 8МБ flash, 512КБ SRAM,
 - [ ] License decision: AGPL-3.0 dual vs BSL vs proprietary
 - [ ] Hardware-key refactor: SwiftUI `.onKeyPress` (iOS 17.4+)
 
+## Голосовой ввод за маком — PTT по ring-буферу
+
+Идея Sergey'я 2026-10-12: не стартовать запись по нажатию, а **писать с
+микрофона в кольцевой буфер постоянно**, а кнопкой размечать начало и конец
+нужного куска. Снимает задержку старта устройства и «не успел нажать»;
+вырезанный сегмент уходит в whisper на ubuntu-home.
+
+Ресёрч и критика готовых решений — [prep/voice-input-macos.md](../bench/podlodka/2026-10/prep/voice-input-macos.md).
+Главное оттуда: wake-word не делать (Porcupine free только non-commercial,
+платно $6k–30k/год; openWakeWord модели тоже non-commercial; Apple
+SpeechAnalyzer в macOS 26 wake-word не умеет). PTT 4–6 ч против 20–30 ч.
+
+- [ ] PTT на F15 (ZMK, тот же жест что на iOS): Hammerspoon → запись с
+      проводной гарнитуры → whisper → inject. Готовность мерить
+      транскрипцией со `stt_ms`, не `/health`
+- [ ] Ring-буфер вместо старта по кнопке: `ffmpeg -f avfoundation` в
+      сегменты по N секунд, кнопка пишет метки, вырезка по меткам.
+      Открытый вопрос — приватность: буфер ловит чужую речь с созвонов,
+      нужен TTL и явный kill на время встреч
+- [ ] Идемпотентность отправки: при обрыве сети к ubuntu-home не должно
+      уехать две одинаковые команды (ретраи этого не решают, нужен id)
+- [ ] Посмотреть Handy (MIT, hold/toggle, CLI-флаги) и VoiceInk (GPL v3,
+      $25–69, свои shell-команды) — может, обвязку писать не надо вообще
+
+**Не переизобретать:** канал «локальный whisper → HTTPS POST → Happy inject
+в Claude-сессию → `voice-mac-reply-both` → afplay» построен 2026-07-17 и
+работает (см. секцию про voice-agent-mac выше). Дорогой тут не инжект, а
+захват звука и разметка.
+
 ## Passive / дата-триггерное
 
 - [ ] **DG1** dogfood quality feedback — bot echo'ит «👂 услышал», плохая
