@@ -1,0 +1,75 @@
+{
+  "total_count": 3,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 1,
+      "name": "alpha",
+      "full_name": "acme/alpha",
+      "private": false,
+      "owner": {
+        "login": "acme",
+        "id": 11,
+        "avatar_url": "https://avatars.githubusercontent.com/u/11?v=4",
+        "type": "Organization"
+      },
+      "html_url": "https://github.com/acme/alpha",
+      "description": "Multi-agent <framework> & \"orchestrator\"",
+      "created_at": "2026-10-08T10:00:00Z",
+      "updated_at": "2026-10-12T10:00:00Z",
+      "pushed_at": "2026-10-12T10:00:00Z",
+      "stargazers_count": 250,
+      "forks_count": 20,
+      "open_issues_count": 5,
+      "language": "TypeScript",
+      "topics": ["multi-agent", "agents"],
+      "license": { "key": "mit", "name": "MIT License", "spdx_id": "MIT" }
+    },
+    {
+      "id": 2,
+      "name": "beta",
+      "full_name": "bob/beta",
+      "private": false,
+      "owner": {
+        "login": "bob",
+        "id": 22,
+        "avatar_url": "https://avatars.githubusercontent.com/u/22?v=4",
+        "type": "User"
+      },
+      "html_url": "https://github.com/bob/beta",
+      "description": "Agent toolkit",
+      "created_at": "2026-10-09T08:00:00Z",
+      "updated_at": "2026-10-13T08:00:00Z",
+      "pushed_at": "2026-10-13T08:00:00Z",
+      "stargazers_count": 900,
+      "forks_count": 60,
+      "open_issues_count": 12,
+      "language": "Python",
+      "topics": ["multi-agent"],
+      "license": null
+    },
+    {
+      "id": 3,
+      "name": "gamma",
+      "full_name": "eve/gamma",
+      "private": false,
+      "owner": {
+        "login": "eve",
+        "id": 33,
+        "avatar_url": "https://avatars.githubusercontent.com/u/33?v=4",
+        "type": "User"
+      },
+      "html_url": "https://github.com/eve/gamma",
+      "description": null,
+      "created_at": "2026-10-10T06:00:00Z",
+      "updated_at": "2026-10-11T06:00:00Z",
+      "pushed_at": "2026-10-11T06:00:00Z",
+      "stargazers_count": 40,
+      "forks_count": 2,
+      "open_issues_count": 0,
+      "language": null,
+      "topics": [],
+      "license": null
+    }
+  ]
+}

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дайджест трендов GitHub — multi-agent</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --fg: #1c2330;
+    --muted: #5b6472;
+    --card-bg: #ffffff;
+    --card-border: #d8dde5;
+    --accent: #2457c5;
+    --chip-bg: #e6ebf3;
+    --progress-bg: #d8dde5;
+    --progress-fill: #2457c5;
+    --error: #b3261e;
+  }
+  [data-theme="dark"] {
+    --bg: #14171d;
+    --fg: #e8ebf0;
+    --muted: #9aa4b2;
+    --card-bg: #1e232c;
+    --card-border: #333b48;
+    --accent: #7aa7ff;
+    --chip-bg: #2a323e;
+    --progress-bg: #333b48;
+    --progress-fill: #7aa7ff;
+    --error: #ff6b61;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  header {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 16px 8px;
+  }
+  h1 { font-size: 22px; margin: 0 0 12px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .controls label { font-size: 14px; color: var(--muted); }
+  #tokenInput {
+    padding: 6px 10px;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--fg);
+    min-width: 260px;
+  }
+  button {
+    padding: 6px 14px;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .progress-wrap { margin: 14px 0 4px; }
+  .progress-label { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .progress {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--progress-bg);
+    overflow: hidden;
+  }
+  .progress > div {
+    height: 100%;
+    width: 0%;
+    background: var(--progress-fill);
+    transition: width .3s;
+  }
+  #errorBox { color: var(--error); font-size: 14px; margin: 8px 0; white-space: pre-wrap; }
+  #hintBox { color: var(--muted); font-size: 13px; margin: 4px 0; }
+  main { max-width: 960px; margin: 0 auto; padding: 8px 16px 40px; }
+  section { margin-top: 24px; }
+  section h2 { font-size: 18px; margin: 0 0 12px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card .top { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+  .name { font-weight: 600; font-size: 14px; margin: 0; word-break: break-word; }
+  .desc { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+  .stars { font-size: 13px; margin: 4px 0 0; }
+  .details { display: none; margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px; font-size: 13px; }
+  .card.expanded .details { display: block; }
+  .details p { margin: 4px 0; }
+  .details .k { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  .chip { background: var(--chip-bg); border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+  .details a { color: var(--accent); word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ежедневный дайджест трендов GitHub — тема «multi-agent»</h1>
+  <div class="controls">
+    <label for="tokenInput">Токен GitHub:</label>
+    <input id="tokenInput" type="password" autocomplete="off" spellcheck="false"
+           placeholder="вставьте значение GITHUB_TOKEN">
+    <button id="runBtn" type="button">Собрать дайджест</button>
+    <label><input type="checkbox" id="themeToggle"> Тёмная тема</label>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label" id="progressLabel">Прогресс: 0 из 2</div>
+    <div class="progress"><div id="progressBar"></div></div>
+  </div>
+  <div id="errorBox"></div>
+  <div id="hintBox"></div>
+</header>
+<main>
+  <section id="freshSection"><h2>Свежие (созданы за последние 7 дней)</h2><div class="grid" id="freshGrid"></div></section>
+  <section id="updatedSection"><h2>Изменения (обновлены за последние 7 дней)</h2><div class="grid" id="updatedGrid"></div></section>
+</main>
+<!-- Генерируемый артефакт данных (app/collect.mjs): window.__GH_SESSION. Если файла нет — не ломается. -->
+<script src="session.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Токен хранится ТОЛЬКО в этой переменной памяти. Никакого localStorage/URL/cookie/console.
+  var token = '';
+
+  // Свежесть сессии из генерируемого app/session.js: не старше 24 часов.
+  var SESSION_MAX_AGE_MS = 24 * 3600 * 1000;
+  function isSessionFresh(generatedAt) {
+    var t = Date.parse(generatedAt);
+    if (!isFinite(t)) return false;
+    var age = Date.now() - t;
+    return age >= 0 && age <= SESSION_MAX_AGE_MS;
+  }
+
+  // ---------- даты ----------
+  function dateSevenDaysAgo(now) {
+    var d = new Date(now.getTime() - 7 * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // ---------- запросы ----------
+  function queryText(category, d7) {
+    var qualifier = category === 'fresh' ? 'created' : 'pushed';
+    return 'topic:multi-agent ' + qualifier + ':>=' + d7;
+  }
+  function buildSearchUrl(category, d7) {
+    return 'https://api.github.com/search/repositories?q=' +
+      encodeURIComponent(queryText(category, d7)) +
+      '&sort=stars&order=desc&per_page=12';
+  }
+
+  // ---------- очередь с retry ----------
+  function retryDelayMs(res, nowMs) {
+    var ra = res.headers.get('Retry-After');
+    if (ra !== null && String(ra).trim() !== '') {
+      var s = Number(ra);
+      if (isFinite(s)) return Math.max(0, s * 1000);
+    }
+    var reset = res.headers.get('X-RateLimit-Reset');
+    if (reset !== null && String(reset).trim() !== '') {
+      var r = Number(reset);
+      if (isFinite(r)) return Math.max(0, r * 1000 - nowMs);
+    }
+    return 1000;
+  }
+  function createQueue(maxRetries) {
+    var chain = Promise.resolve();
+    function runOne(url, headers) {
+      var retries = 0;
+      function attempt() {
+        return fetch(url, { headers: headers }).then(function (res) {
+          if (res.status === 403 || res.status === 429) {
+            if (retries >= maxRetries) {
+              throw new Error('Превышен лимит запросов GitHub (HTTP ' + res.status + '), ретраи исчерпаны');
+            }
+            retries += 1;
+            return new Promise(function (r) { setTimeout(r, retryDelayMs(res, Date.now())); }).then(attempt);
+          }
+          if (!res.ok) {
+            var err = new Error('GitHub API вернул HTTP ' + res.status);
+            err.status = res.status;
+            throw err;
+          }
+          return res.json();
+        });
+      }
+      return attempt();
+    }
+    return {
+      enqueue: function (url, headers) {
+        var result = chain.then(function () { return runOne(url, headers); },
+                                function () { return runOne(url, headers); });
+        chain = result.then(function () {}, function () {});
+        return result;
+      }
+    };
+  }
+
+  // ---------- сортировка ----------
+  function sortByStarsDesc(items) {
+    return items.slice().sort(function (a, b) { return b.stargazers_count - a.stargazers_count; });
+  }
+
+  // ---------- рендер (DOM) ----------
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return String(iso).replace('T', ' ').replace('Z', ' UTC');
+  }
+  function renderCard(grid, item) {
+    var card = el('article', 'card');
+
+    var top = el('div', 'top');
+    var img = document.createElement('img');
+    img.className = 'avatar';
+    img.src = (item.owner && item.owner.avatar_url) || '';
+    img.alt = 'Аватар ' + item.full_name;
+    top.appendChild(img);
+    top.appendChild(el('h3', 'name', item.full_name));
+    card.appendChild(top);
+
+    if (item.description) card.appendChild(el('p', 'desc', item.description));
+    card.appendChild(el('p', 'stars', '★ ' + item.stargazers_count + ' · обновлён ' + fmtDate(item.pushed_at)));
+
+    function kv(k, v) {
+      var p = el('p');
+      p.appendChild(el('span', 'k', k + ': '));
+      p.appendChild(document.createTextNode(v));
+      return p;
+    }
+    var details = el('div', 'details');
+    if (item.description) details.appendChild(el('p', null, item.description));
+    details.appendChild(kv('Язык', item.language || '—'));
+    details.appendChild(kv('Форки', String(item.forks_count)));
+    details.appendChild(kv('Открытые задачи', String(item.open_issues_count)));
+    details.appendChild(kv('Создан', fmtDate(item.created_at)));
+    details.appendChild(kv('Обновлён (метаданные)', fmtDate(item.updated_at)));
+    details.appendChild(kv('Последний push', fmtDate(item.pushed_at)));
+    details.appendChild(kv('Лицензия', (item.license && item.license.spdx_id) || '—'));
+    if (Array.isArray(item.topics) && item.topics.length) {
+      var chips = el('div', 'chips');
+      item.topics.forEach(function (t) { chips.appendChild(el('span', 'chip', t)); });
+      details.appendChild(chips);
+    }
+    var link = el('a', null, item.html_url);
+    link.href = item.html_url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    details.appendChild(link);
+    card.appendChild(details);
+
+    card.addEventListener('click', function (ev) {
+      if (ev.target.tagName === 'A') return; // ссылку не перехватываем
+      card.classList.toggle('expanded');
+    });
+    grid.appendChild(card);
+  }
+
+  function renderSection(gridId, items) {
+    var grid = document.getElementById(gridId);
+    grid.textContent = '';
+    items.forEach(function (item) { renderCard(grid, item); });
+  }
+
+  // ---------- прогресс и ошибки ----------
+  var doneSteps = 0;
+  function setProgress(done, total) {
+    document.getElementById('progressLabel').textContent = 'Прогресс: ' + done + ' из ' + total;
+    document.getElementById('progressBar').style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+  }
+  function showError(msg) {
+    document.getElementById('errorBox').textContent = msg;
+  }
+  function clearError() {
+    document.getElementById('errorBox').textContent = '';
+  }
+  function setHint(msg) {
+    document.getElementById('hintBox').textContent = msg;
+  }
+  function errorMessage(err) {
+    if (err && err.status === 401) return 'Токен неверен или истёк — введите его заново.';
+    if (err && err.status === 422) return 'Некорректный запрос к GitHub (HTTP 422).';
+    if (err && /лимит/i.test(err.message || '')) return err.message;
+    if (err && err.message) return 'Ошибка: ' + err.message + ' (проверьте доступ в сеть и токен).';
+    return 'Неизвестная ошибка.';
+  }
+
+  // ---------- сбор ----------
+  var running = false;
+  function run() {
+    if (running) return;
+    if (!token) { showError('Введите токен GitHub в поле выше.'); return; }
+    running = true;
+    clearError();
+    doneSteps = 0;
+    setProgress(0, 2);
+
+    var d7 = dateSevenDaysAgo(new Date());
+    var headers = {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+    var queue = createQueue(3);
+
+    queue.enqueue(buildSearchUrl('fresh', d7), headers)
+      .then(function (data) {
+        renderSection('freshGrid', sortByStarsDesc(data.items || []).slice(0, 12));
+        doneSteps += 1;
+        setProgress(doneSteps, 2);
+      })
+      .then(function () {
+        return queue.enqueue(buildSearchUrl('updated', d7), headers)
+          .then(function (data) {
+            renderSection('updatedGrid', sortByStarsDesc(data.items || []).slice(0, 12));
+            doneSteps += 1;
+            setProgress(doneSteps, 2);
+          });
+      })
+      .catch(function (err) {
+        showError(errorMessage(err));
+        setProgress(doneSteps, 2);
+      })
+      .then(function () { running = false; });
+  }
+
+  // ---------- старт при загрузке страницы ----------
+  document.addEventListener('DOMContentLoaded', function () {
+    var input = document.getElementById('tokenInput');
+    input.addEventListener('input', function () {
+      token = input.value; // только в память, нигде больше
+      if (token) { clearError(); setHint(''); run(); } // после ввода токена сразу запускаем сбор
+    });
+    document.getElementById('runBtn').addEventListener('click', run);
+    document.getElementById('themeToggle').addEventListener('change', function (ev) {
+      document.documentElement.setAttribute('data-theme', ev.target.checked ? 'dark' : 'light');
+    });
+    document.documentElement.setAttribute('data-theme', 'light');
+    setProgress(0, 2);
+
+    // Автозапуск со свежей сессией из генерируемого app/session.js (создаётся collect.mjs).
+    // Если файла нет или сессия устарела (> 24 ч) — работает masked-поле.
+    var session = (typeof window.__GH_SESSION !== 'undefined' && window.__GH_SESSION)
+      ? window.__GH_SESSION : null;
+    if (session && typeof session.token === 'string' && session.token &&
+        isSessionFresh(session.generated_at)) {
+      token = session.token; // только в память, в console/UI токен не выводится
+      setHint('Токен взят автоматически из сессии (app/session.js).');
+      run();
+    } else {
+      setHint('Сессия не найдена или устарела (старше 24 ч): введите токен GITHUB_TOKEN в поле — сбор начнётся автоматически.');
+    }
+  });
+})();
+</script>
+</body>
+</html>
