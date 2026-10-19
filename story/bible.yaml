@@ -1,0 +1,38 @@
+# Библия сериала проекта voice. Неизменное: мир, герои, стиль.
+# Как пользоваться — ~/.claude/docs/image-generation.md («Сериал проекта»).
+series: "Подлодка «Шёпот»"
+premise: >
+  Капитан и его экипаж ходят на подлодке «Шёпот» по глубинам чужих эфиров:
+  слушают созвоны и доклады, переводят звук в текст и привозят из походов знания.
+style:
+  medium: "16-bit retro pixel art, SNES era"
+  palette: "deep navy, sonar green, brass, warm cabin orange"
+  framing: "single panel, wide 16:9, readable silhouettes"
+  text_policy: "1-2 speech bubbles max, short Russian text in quotes; captions go under the image, not on it"
+  never: ["photorealism", "logos", "real people's faces", "extra unnamed crew"]
+cast:
+  - id: captain
+    role: "Капитан — Sergey"
+    fixed: ["navy captain's coat with brass buttons", "white captain's cap", "big over-ear headphones around neck", "short dark beard"]
+    vary: ["pose", "expression", "one prop"]
+  - id: bosun
+    role: "Боцман — исполнитель shell-команд, рвётся всё зачистить"
+    fixed: ["stocky", "striped navy-white vest", "red bandana", "big wrench"]
+  - id: sonar
+    role: "Гидроакустик — whisper, слышит всё, иногда эхо собственной шпаргалки"
+    fixed: ["thin", "huge green-glowing headset", "round glasses", "notepad"]
+  - id: cat
+    role: "Кот-сторож — нянька процессов, следит по таймеру"
+    fixed: ["chubby ginger cat", "tiny sailor hat", "brass lantern"]
+  - id: archivist
+    role: "Архивариус — субагенты, разбирает свитки"
+    fixed: ["small brass robot", "square green monitor face", "one antenna with red tip", "satchel of scrolls"]
+world:
+  ship: "подлодка «Шёпот»: рубка с сонаром, машинное отделение, архив со свитками"
+  places:
+    voice: "сама лодка"
+    podlodka_season: "дальние глубины конференций — экспедиции за знаниями"
+    avito: "порт-склад с оптовыми лестницами и корзинами (только метафорами, без рабочих данных)"
+    hub: "береговая библиотека гипотез"
+references:
+  cast_sheet: "references/cast-sheet.png — канон лиц и костюмов, эпизоды в канон не превращать"
