@@ -9,6 +9,16 @@ style:
   palette: "deep navy, sonar green, brass, warm cabin orange"
   framing: "single panel, wide 16:9, readable silhouettes"
   text_policy: "1-2 speech bubbles max, short Russian text in quotes; captions go under the image, not on it"
+  # HYP-065 (хаб, 19.10): картинка = схема состояния со стабильными слотами,
+  # юмор — только в подписи (риск seductive details). Эпизод рисуется ТОЛЬКО
+  # из carry-over /endsession, новых фактов не добавляет.
+  episode_slots:
+    compass: "цель — «Контекст» из carry-over одной строкой"
+    red_lamp: "блокер / «Что важно» (горит или нет)"
+    inbox_crate: "число входящих из SessionStart-хука"
+    zones_map: "где лодка: зона/модуль проекта, где лежит артефакт"
+    next_step: "«что нужно от Сергея» — ОДИН шаг с критерием готовности"
+  facts_max: 5
   never: ["photorealism", "logos", "real people's faces", "extra unnamed crew"]
 cast:
   - id: captain
