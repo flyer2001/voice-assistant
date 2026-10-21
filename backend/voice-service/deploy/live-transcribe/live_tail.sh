@@ -201,7 +201,7 @@ while true; do
       break ;;
   esac
 
-  TC=$(printf '%02d:%02d:%02d' $((POS/3600)) $((POS%3600/60)) $((POS%60)))
+  TC=$(hhmmss "$POS")
   GOT_ANY=""
 
   for TRACK in $(seq 1 "$TRACKS"); do
@@ -264,11 +264,13 @@ $LABEL: $TEXT"
   # бы вдвое чаще заданного INJECT_EVERY.
   if [ -n "$GOT_ANY" ]; then
     CHUNKS_IN_BUF=$((CHUNKS_IN_BUF + 1))
-    [ "$CHUNKS_IN_BUF" -ge "$INJECT_EVERY" ] && flush_buffer "$TC"
+    # Конец блока, а не начало последнего чанка: с INJECT_EVERY=1 в теге
+    # получалось from == to, и два разных куска выглядели одним таймкодом.
+    [ "$CHUNKS_IN_BUF" -ge "$INJECT_EVERY" ] && flush_buffer "$(hhmmss $((POS + CHUNK_S)))"
   fi
   POS=$((POS + CHUNK_S))
 done
-flush_buffer "$(printf '%02d:%02d:%02d' $((POS/3600)) $((POS%3600/60)) $((POS%60)))"
+flush_buffer "$(hhmmss "$POS")"
 touch "$OUTDIR/.done-$BASE"
 POS=0; IDLE=0; PREAMBLE_SENT=""   # новая запись — новая преамбула
 echo "$(date +%H:%M:%S) готов к следующей записи"
