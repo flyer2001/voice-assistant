@@ -36,8 +36,14 @@ while true; do
   pkill -f "live_tail.sh mac-work"; sleep 2
   POS=$(offset)
   echo "$(date +%H:%M:%S) нянька: перезапуск хвоста со смещения ${POS}с" >> "$LOG"
+  # Параметры наследуем из своего окружения, а не прошиваем: 22.10 звук оказался
+  # во второй дорожке, хвост поднимали с VOICE_TRACKS=2 — нянька при перезапуске
+  # вернула бы дорожку 1 и снова «тишину», а выглядело бы как живой хвост.
   setsid nohup env \
-    VOICE_REC_DIR='$HOME/Movies' VOICE_CHUNK_S=15 VOICE_INJECT_EVERY=2 \
+    VOICE_REC_DIR='$HOME/Movies' \
+    VOICE_CHUNK_S="${VOICE_CHUNK_S:-15}" \
+    VOICE_INJECT_EVERY="${VOICE_INJECT_EVERY:-2}" \
+    VOICE_TRACKS="${VOICE_TRACKS:-1}" \
     VOICE_START_POS="$POS" VOICE_INJECT_SID="$SID" \
     VOICE_PROMPT_FILE="${VOICE_PROMPT_FILE:-/root/projects/voice/bench/work/prompt.txt}" \
     "$TAIL" mac-work /srv/voice-private/live >> "$LOG" 2>&1 < /dev/null &
