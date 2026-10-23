@@ -11,8 +11,10 @@ Endpoint:
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 import time
+from collections import Counter
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -37,6 +39,56 @@ COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")
 # включён и оправдан. Поэтому решение оставлено за клиентом, а не зашито
 # в сервер: WHISPER_INITIAL_PROMPT=<текст> включает default осознанно.
 DEFAULT_INITIAL_PROMPT = os.environ.get("WHISPER_INITIAL_PROMPT", "")
+
+# Фильтр галлюцинаций. Дейлик 2026-10-23 дал три вида мусора на тихих
+# кусках: титры обучающего корпуса («Субтитры делал DimaTorzok», «Редактор
+# субтитров А.Семкин»), repetition loop («Важно. Важно. Важно… За год.») и
+# соскальзывание языка. Первые два детерминированы и режутся на выходе,
+# третий лечится condition_on_previous_text=False ниже.
+_CREDITS = re.compile(
+    r"субтитр|корректор\s+[А-Я]\.|продолжение\s+следует|dimatorzok|"
+    r"спасибо\s+за\s+просмотр|подписывайтесь|amara\.org|titlovi|opensubtitles",
+    re.IGNORECASE,
+)
+
+
+def _is_loop(text: str, min_words: int = 6, ratio: float = 0.5, reps: int = 4) -> bool:
+    """Одно слово повторено reps+ раз И уникальных слов мало.
+
+    Оба условия вместе: живая речь тоже сыпет «вот… вот… вот», но у неё
+    доля уникальных слов остаётся высокой.
+    """
+    words = re.findall(r"\w+", text.lower())
+    if len(words) < min_words:
+        return False
+    return max(Counter(words).values()) >= reps and len(set(words)) / len(words) < ratio
+
+
+def _is_prompt_echo(text: str, prompt: str | None) -> bool:
+    """Перечисление из трёх+ слов, все из промпта, — это промпт протёк.
+
+    На тишине модель вместо титров выдаёт список имён из initial_prompt
+    («Лёша, Слава, Коля, Габриэль, Саша»). Условие узкое намеренно: нужна
+    и запятая через каждое слово, и полное попадание в промпт.
+    """
+    if not prompt:
+        return False
+    parts = [p.strip().lower() for p in text.strip().rstrip(".").split(",")]
+    if len(parts) < 3 or any(len(p.split()) != 1 for p in parts):
+        return False
+    if len(set(parts)) != len(parts):  # «да, да, да» — речь, не перечисление
+        return False
+    vocab = set(re.findall(r"\w+", prompt.lower()))
+    return all(p in vocab for p in parts if p)
+
+
+def clean_segment(text: str, prompt: str | None = None) -> str:
+    """Пустая строка = сегмент выброшен как галлюцинация."""
+    t = text.strip()
+    if not t or _CREDITS.search(t) or _is_loop(t) or _is_prompt_echo(t, prompt):
+        return ""
+    return t
+
 
 print(f"loading model {MODEL_ID} on {DEVICE}/{COMPUTE_TYPE}...")
 _load_start = time.time()
@@ -80,8 +132,17 @@ async def transcribe(
             language=lang_hint or None,
             initial_prompt=prompt,
             vad_filter=True,
+            # Без этого декодер тащит свой предыдущий вывод в следующий
+            # сегмент и зацикливается на тихих кусках.
+            condition_on_previous_text=False,
+            # Порог «тут нет речи» выше дефолтных 0.6: тихая дорожка
+            # микрофона (−60 dB на дейлике) иначе превращается в титры.
+            no_speech_threshold=0.7,
+            compression_ratio_threshold=2.4,
+            log_prob_threshold=-1.0,
         )
-        text = " ".join(s.text for s in segments).strip()
+        kept = [c for c in (clean_segment(s.text, prompt) for s in segments) if c]
+        text = " ".join(kept).strip()
         elapsed_ms = int((time.time() - start) * 1000)
         return JSONResponse(
             {
