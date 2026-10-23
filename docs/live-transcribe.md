@@ -174,6 +174,8 @@ Sergey подтверждает, что участники предупрежд�
 ## Related
 
 - [Где что крутится](where-runs-what.md) — какая машина за что отвечает
+- [Глоссарий STT](stt-glossary.md) — что подсказывать промптом, что вырезать
+  фильтром; пороги гейтов тишины и как их двигать
 - [сравнение моделей](../bench/whisper-accuracy/comparison-2026-08-01.md) —
   turbo против large-v3, и почему `initial_prompt` влияет сильнее выбора модели
 - [mac-client](../backend/voice-service/deploy/mac-client/) — отлаженная

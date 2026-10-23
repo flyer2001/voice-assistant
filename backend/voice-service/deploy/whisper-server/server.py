@@ -10,10 +10,13 @@ Endpoint:
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 import tempfile
 import time
+import wave
+from array import array
 from collections import Counter
 from pathlib import Path
 
@@ -40,6 +43,17 @@ COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")
 # в сервер: WHISPER_INITIAL_PROMPT=<текст> включает default осознанно.
 DEFAULT_INITIAL_PROMPT = os.environ.get("WHISPER_INITIAL_PROMPT", "")
 
+# Порог входного гейта. −55 dBFS: на дейлике 2026-10-23 эфир шёл на −28,
+# тихий микрофон на −60, и весь мусор пришёл с кусков тише −55.
+# ponytail: один порог на всех, per-track порог — если дорожки разойдутся сильнее.
+SILENCE_DBFS = float(os.environ.get("WHISPER_SILENCE_DBFS", "-55"))
+
+# Гейты по уверенности модели для сегментов, прошедших входной порог.
+# Речь на дейлике держалась в avg_logprob около −0.5, галлюцинации на тихом
+# куске уходили ниже −1.0.
+NO_SPEECH_MAX = float(os.environ.get("WHISPER_NO_SPEECH_MAX", "0.6"))
+LOGPROB_MIN = float(os.environ.get("WHISPER_LOGPROB_MIN", "-1.1"))
+
 # Фильтр галлюцинаций. Дейлик 2026-10-23 дал три вида мусора на тихих
 # кусках: титры обучающего корпуса («Субтитры делал DimaTorzok», «Редактор
 # субтитров А.Семкин»), repetition loop («Важно. Важно. Важно… За год.») и
@@ -62,6 +76,27 @@ def _is_loop(text: str, min_words: int = 6, ratio: float = 0.5, reps: int = 4) -
     if len(words) < min_words:
         return False
     return max(Counter(words).values()) >= reps and len(set(words)) / len(words) < ratio
+
+
+def dbfs(path: str) -> float | None:
+    """Громкость куска в dBFS. None — не 16-битный PCM wav, гейт пропускаем.
+
+    Гейт на входе дешевле любой пост-фильтрации: на тихом куске модель не
+    запускается вообще, а значит и выдумывать ей нечего. Дейлик 2026-10-23
+    показал, что весь мусор пришёл с кусков тише −55 dB.
+    """
+    try:
+        with wave.open(path, "rb") as w:
+            if w.getsampwidth() != 2:
+                return None
+            frames = w.readframes(w.getnframes())
+    except (wave.Error, EOFError, OSError):
+        return None
+    if not frames:
+        return -120.0
+    samples = array("h", frames[: len(frames) // 2 * 2])
+    rms = math.sqrt(sum(s * s for s in samples) / len(samples)) if samples else 0.0
+    return -120.0 if rms < 1 else 20 * math.log10(rms / 32768.0)
 
 
 def _is_prompt_echo(text: str, prompt: str | None) -> bool:
@@ -95,7 +130,7 @@ _load_start = time.time()
 model = WhisperModel(MODEL_ID, device=DEVICE, compute_type=COMPUTE_TYPE)
 print(f"model loaded in {time.time() - _load_start:.1f}s")
 
-app = FastAPI(title="whisper-relay", version="0.1")
+app = FastAPI(title="whisper-relay", version="0.4.0")
 
 
 @app.get("/health")
@@ -106,6 +141,7 @@ async def health():
         "device": DEVICE,
         "compute_type": COMPUTE_TYPE,
         "default_prompt_len": len(DEFAULT_INITIAL_PROMPT),
+        "silence_dbfs": SILENCE_DBFS,
     }
 
 
@@ -126,12 +162,32 @@ async def transcribe(
 
     start = time.time()
     try:
+        # Гейт на входе: тише порога — модель не запускаем. Это не экономия
+        # GPU, а главное лекарство от галлюцинаций: им просто негде взяться.
+        level = dbfs(tmp_path)
+        if level is not None and level < SILENCE_DBFS:
+            return JSONResponse(
+                {
+                    "text": "",
+                    "lang": lang_hint or "",
+                    "duration_s": 0.0,
+                    "stt_ms": int((time.time() - start) * 1000),
+                    "prompt_used": False,
+                    "gated": True,
+                    "dbfs": round(level, 1),
+                }
+            )
+
         prompt = initial_prompt or DEFAULT_INITIAL_PROMPT or None
         segments, info = model.transcribe(
             tmp_path,
             language=lang_hint or None,
             initial_prompt=prompt,
             vad_filter=True,
+            # Порог silero дефолтный: на 0.6 начало фраз обрезалось («я до
+            # шторки» вместо «я пока до шторки»). Секунда тишины вместо
+            # полусекунды — чтобы короткие шорохи не считались речью.
+            vad_parameters={"min_silence_duration_ms": 1000, "speech_pad_ms": 600},
             # Без этого декодер тащит свой предыдущий вывод в следующий
             # сегмент и зацикливается на тихих кусках.
             condition_on_previous_text=False,
@@ -141,7 +197,20 @@ async def transcribe(
             compression_ratio_threshold=2.4,
             log_prob_threshold=-1.0,
         )
-        kept = [c for c in (clean_segment(s.text, prompt) for s in segments) if c]
+        # Второй гейт — по уверенности самой модели. На куске −52 dB, который
+        # прошёл входной порог, она выдала «Пирамиды, ГРУПП, СССР»: текста
+        # такого в звуке нет, но у сегмента плохие avg_logprob и
+        # no_speech_prob. Это ловится честнее любого блок-листа.
+        kept = [
+            c
+            for c in (
+                clean_segment(s.text, prompt)
+                for s in segments
+                if (s.no_speech_prob or 0.0) < NO_SPEECH_MAX
+                and (s.avg_logprob if s.avg_logprob is not None else 0.0) > LOGPROB_MIN
+            )
+            if c
+        ]
         text = " ".join(kept).strip()
         elapsed_ms = int((time.time() - start) * 1000)
         return JSONResponse(
