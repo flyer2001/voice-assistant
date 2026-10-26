@@ -312,3 +312,8 @@ ubuntu-home (собеседники между собой, после эфира
 - VK `audio_message_transcript` async event skip'ается в MVP — Whisper всегда
   работает когда `state != "done"`. Перепроверить если Whisper под нагрузкой
 - Audit JSONL eviction policy = NONE (Phase 0 SP3). ~180KB/msg, OK на год
+
+- [ ] Решить, нужен ли гейт на команды из эфира в других сессиях (сейчас только
+      voice/.claude/settings.json): кандидаты — avito-aider-claude-cli и
+      assistant, они тоже бывают адресатами блоков. Механика и тесты —
+      `backend/voice-service/deploy/live-transcribe/OPERATIONS.md`, «Эхо TTS»

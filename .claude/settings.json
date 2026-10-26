@@ -11,6 +11,10 @@
           {
             "type": "command",
             "command": "/root/projects/agentops/bin/loop-detector.sh"
+          },
+          {
+            "type": "command",
+            "command": "/root/projects/voice/backend/voice-service/deploy/live-transcribe/voice-live-gate.py"
           }
         ]
       }

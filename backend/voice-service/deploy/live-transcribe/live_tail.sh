@@ -14,8 +14,10 @@ set -uo pipefail
 HOST="${1:?ssh-хост с записью}"
 OUTDIR="${2:?каталог для конспектов}"
 mkdir -p "$OUTDIR"
-# Вердикт «растёт ли запись» — отдельным файлом, он под тестом.
+# Вердикт «растёт ли запись» и запись куска в конспект — отдельными файлами,
+# они под тестами (test_live_tail_growth.sh, test_echo_wiring.sh).
 . "$(cd "$(dirname "$0")" && pwd)/lib_growth.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib_echo.sh"
 CHUNK_S="${VOICE_CHUNK_S:-20}"
 # Каждые сколько чанков инжектить накопленное в сессию-слушателя.
 # 4 чанка по 20с = блок ~80 секунд речи, ~30 инжектов на часовой доклад.
@@ -38,6 +40,13 @@ TRACKS_WANTED="${VOICE_TRACKS:-1}"
 TRACKS="$TRACKS_WANTED"
 T1_LABEL="${VOICE_TRACK1_LABEL:-эфир}"
 T2_LABEL="${VOICE_TRACK2_LABEL:-Сергей}"
+# Эхо своего же TTS: озвученный ответ слышно в комнате, OBS пишет его в дорожку,
+# whisper распознаёт обратно, и в сессию приходит блок, выглядящий как чужая
+# реплика. 26.10 так приехали «коммить», «ребейз на девелоп» и «можно пушить».
+# Выключать (`VOICE_ECHO_FILTER=0`) только если фильтр начнёт резать эфир:
+# проверять это нужно echo_baseline.py, а не на живой записи.
+ECHO_FILTER="${VOICE_ECHO_FILTER:-1}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
 
 FFMPEG_MAC="export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; ffmpeg"
 
@@ -240,19 +249,24 @@ while true; do
     # режиме «эфир» перед каждой строкой — шум, а не информация.
     if [ "$TRACKS" -eq 1 ]; then LABEL=""; elif [ "$TRACK" -eq 1 ]; then LABEL="$T1_LABEL"; else LABEL="$T2_LABEL"; fi
 
+    # Запись куска и вердикт по эху — в lib_echo.sh, под тестом
+    # (test_echo_wiring.sh). Контракт: в конспект текст попадает всегда, эхо
+    # лишь помечается; ложное срабатывание фильтра стоит лишней метки в
+    # расшифровке, а не потерянной минуты эфира.
+    ECHO_WHY=""
+    [ -n "$TEXT" ] && [ "$ECHO_FILTER" = "1" ] && ECHO_WHY="$(echo_verdict "$TEXT")"
+
     if [ -n "$TEXT" ]; then
-      if [ -n "$LABEL" ]; then
-        printf '**[%s]** _%s:_ %s\n\n' "$TC" "$LABEL" "$TEXT" >> "$OUT"
-        echo "$(date +%H:%M:%S) [$TC] $LABEL: ${#TEXT} символов"
-        BUF="$BUF
-$LABEL: $TEXT"
+      LINE="$(emit_block "$OUT" "$TC" "$LABEL" "$TEXT" "$ECHO_WHY")"
+      if [ -n "$ECHO_WHY" ]; then
+        echo "$(date +%H:%M:%S) [$TC] ${LABEL:+$LABEL: }${#TEXT} символов — $ECHO_WHY, в блок не идёт"
       else
-        printf '**[%s]** %s\n\n' "$TC" "$TEXT" >> "$OUT"
-        echo "$(date +%H:%M:%S) [$TC] ${#TEXT} символов"
-        BUF="$BUF $TEXT"
+        echo "$(date +%H:%M:%S) [$TC] ${LABEL:+$LABEL: }${#TEXT} символов"
+        BUF="$BUF
+$LINE"
+        [ -z "$BUF_FROM" ] && BUF_FROM="$TC"
+        GOT_ANY=1
       fi
-      [ -z "$BUF_FROM" ] && BUF_FROM="$TC"
-      GOT_ANY=1
     elif [ "$CODE" = "200" ]; then
       echo "$(date +%H:%M:%S) [$TC] ${LABEL:+$LABEL: }тишина"
     else
