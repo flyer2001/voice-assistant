@@ -71,7 +71,7 @@ public enum VoiceServiceApp {
                 let reply: AliceResponse
                 switch outcome {
                 case .answerRequest:
-                    reply = AliceHandler.answerReply(await alice.takeAnswer())
+                    reply = AliceHandler.answerReply(await alice.takeAnswer(req.meta?.client_id ?? ""))
                 case .repeatRequest:
                     reply = AliceHandler.answerReply(await alice.repeatLast())
                 case .clearRequest:

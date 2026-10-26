@@ -43,25 +43,34 @@ echo "чанков: $TOTAL"
 # файла это не так — дописываем пустышку, чтобы настоящий последний обработался.
 touch "$WORK/chunk-$(printf '%03d' "$TOTAL").wav"
 
-# Ядро крутится в цикле и сам не завершается — ждём, пока перестанут
-# появляться новые записи, и глушим.
+# Ядро дописывает в существующий файл (живой записи так нужно для
+# перезапуска), а здесь файл расшифровывается целиком — повтор начинаем с нуля,
+# иначе блоки прошлого прогона задвоятся.
+rm -f "$OUT"
+
+# Ядро крутится в цикле и само не завершается — ждём, пока оно отчитается
+# по каждому чанку (текст или тишина), и глушим. По росту выходного файла
+# судить нельзя: тишина в него не пишется, и запись, начавшаяся с паузы,
+# обрывалась на первых секундах (19.10, часовая встреча → 0 символов).
 "$HERE/transcribe_chunks.py" "$WORK" "$OUT" \
   --chunk-seconds "$CHUNK" \
-  --title "$(basename "${SRC%.*}")" &
+  --title "$(basename "${SRC%.*}")" 2> "$WORK/core.log" &
 PID=$!
 
-LAST_SIZE=0
-STABLE=0
+IDLE=0
+LAST_DONE=0
 while kill -0 "$PID" 2>/dev/null; do
   sleep 3
-  SIZE="$(wc -c < "$OUT" 2>/dev/null || echo 0)"
-  if [ "$SIZE" = "$LAST_SIZE" ]; then
-    STABLE=$((STABLE + 1))
-    [ "$STABLE" -ge 4 ] && break
+  DONE="$(grep -c ' чанк [0-9]*:' "$WORK/core.log" || true)"
+  [ "$DONE" -ge "$TOTAL" ] && break
+  if [ "$DONE" = "$LAST_DONE" ]; then
+    IDLE=$((IDLE + 1))
+    # Минута без единого чанка — распознавание встало (сеть, мёртвая CUDA).
+    [ "$IDLE" -ge 20 ] && { echo "" >&2; tail -3 "$WORK/core.log" >&2; echo "встало на $DONE/$TOTAL" >&2; kill "$PID"; exit 1; }
   else
-    STABLE=0
-    LAST_SIZE="$SIZE"
-    printf '\r  распознано %s символов' "$SIZE"
+    IDLE=0
+    LAST_DONE="$DONE"
+    printf '\r  чанков %s/%s' "$DONE" "$TOTAL"
   fi
 done
 kill "$PID" 2>/dev/null || true

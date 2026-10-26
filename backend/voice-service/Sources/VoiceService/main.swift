@@ -282,7 +282,7 @@ let aliceConfig: AliceConfig? = {
                 ])
             }
         },
-        takeAnswer: {
+        takeAnswer: { clientId in
             /// Непустое содержимое файла или nil.
             func read(_ url: URL) -> String? {
                 guard let data = try? Data(contentsOf: url),
@@ -306,6 +306,7 @@ let aliceConfig: AliceConfig? = {
                     at: first, to: archiveDir.appendingPathComponent(first.lastPathComponent))
                 logger.info("сообщение из очереди озвучено", metadata: [
                     "file": .string(first.lastPathComponent),
+                    "client_id": .string(clientId),
                     "remaining": .stringConvertible(pending_queue.count - 1)
                 ])
                 return AliceAnswer(text: text, isRepeat: false,
@@ -318,7 +319,8 @@ let aliceConfig: AliceConfig? = {
                 try? FileManager.default.removeItem(at: readAnswerFile)
                 try? FileManager.default.moveItem(at: answerFile, to: readAnswerFile)
                 logger.info("ответ озвучен", metadata: [
-                    "chars": .stringConvertible(text.count)
+                    "chars": .stringConvertible(text.count),
+                    "client_id": .string(clientId)
                 ])
                 return AliceAnswer(text: text, isRepeat: false)
             }
@@ -327,11 +329,13 @@ let aliceConfig: AliceConfig? = {
             if let text = read(readAnswerFile) {
                 logger.info(pending ? "ответ готовится, отдан прошлый"
                                     : "ответ озвучен повторно",
-                            metadata: ["chars": .stringConvertible(text.count)])
+                            metadata: ["chars": .stringConvertible(text.count),
+                                       "client_id": .string(clientId)])
                 return AliceAnswer(text: text, isRepeat: true, isPending: pending)
             }
             logger.info(pending ? "ответ готовится, прошлого нет" : "ящик ответа пуст",
-                        metadata: ["file": .string(answerFile.path)])
+                        metadata: ["file": .string(answerFile.path),
+                                   "client_id": .string(clientId)])
             return pending ? AliceAnswer(text: "", isRepeat: false, isPending: true) : nil
         },
         repeatLast: {
@@ -413,6 +417,8 @@ let smartHomeConfig: SmartHomeConfig? = {
         else { return 0 }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        // Дефолт 60 с: три вызова сигнала могли висеть три минуты (16.10).
+        request.timeoutInterval = 5
         request.setValue("OAuth \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data("""
@@ -464,7 +470,12 @@ let smartHomeConfig: SmartHomeConfig? = {
             ])
             // В тихом режиме гасим только сигнал: сообщение уже в очереди и
             // никуда не денется, человек послушает когда удобно.
-            if !quiet { await notifier.signal() }
+            // Сигнал — в фоне: файл уже в очереди, а ждать Яндекс незачем.
+            // 16.10 callback висел 60 с, curl диспетчера отвалился по 10 с,
+            // и ответ ушёл в VK, хотя сообщение лежало в очереди.
+            // ponytail: два сигнала подряд могут перемешать вкл/выкл; переход
+            // «вкл» есть у каждого, а очередь отдаёт по одному — терпимо.
+            if !quiet { Task.detached { await notifier.signal() } }
         },
         // Свой префикс: домен делится с игрой, занимать её корневой /v1.0
         // нельзя. Платформа добавит /v1.0/... сама.

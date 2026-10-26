@@ -91,7 +91,9 @@ public struct AliceConfig: Sendable {
     /// Забирает подготовленный ответ, если он есть, и помечает его прочитанным.
     /// Так колонка озвучивает ответ, хотя навык не может заговорить первым:
     /// человек спрашивает «дай ответ», когда текст уже лежит.
-    public let takeAnswer: @Sendable () async -> AliceAnswer?
+    /// Аргумент — сырой `client_id` спросившей колонки: какая колонка забрала
+    /// ответ, иначе не узнать (16.10 очередь «озвучилась» мимо Sergey).
+    public let takeAnswer: @Sendable (String) async -> AliceAnswer?
     /// Переслушать последнее, не листая очередь.
     public let repeatLast: @Sendable () async -> AliceAnswer?
     /// Выбросить очередь, вернув число убранных сообщений.
@@ -103,7 +105,7 @@ public struct AliceConfig: Sendable {
     public init(pathSecret: String,
                 skillId: String? = nil,
                 inject: @escaping @Sendable (String, String) async -> Void,
-                takeAnswer: @escaping @Sendable () async -> AliceAnswer? = { nil },
+                takeAnswer: @escaping @Sendable (String) async -> AliceAnswer? = { _ in nil },
                 repeatLast: @escaping @Sendable () async -> AliceAnswer? = { nil },
                 clearQueue: @escaping @Sendable () async -> Int = { 0 },
                 setQuiet: @escaping @Sendable (Bool) async -> Void = { _ in }) {

@@ -143,7 +143,7 @@ struct AliceEndpointTests {
             replyProvider: { _ in "unused" },
             alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
                                inject: { text, _ in sink.add(text) },
-                               takeAnswer: { box.take() })
+                               takeAnswer: { _ in box.take() })
         ))
         try await app.test(.router) { client in
             try await client.execute(
@@ -176,7 +176,7 @@ struct AliceEndpointTests {
             replyProvider: { _ in "unused" },
             alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
                                inject: { text, _ in sink.add(text) },
-                               takeAnswer: { box.take() })
+                               takeAnswer: { _ in box.take() })
         ))
         try await app.test(.router) { client in
             try await client.execute(
@@ -187,6 +187,33 @@ struct AliceEndpointTests {
         }
         try await Task.sleep(for: .milliseconds(200))
         #expect(sink.all.isEmpty)
+    }
+
+    // 16.10 очередь «озвучилась», а Sergey у колонки ничего не услышал:
+    // какая колонка забрала ответ, журнал не знал. Без этого не проверить,
+    // говорит ли сценарий через другую колонку.
+    @Test("«дай ответ» знает, с какой колонки спросили")
+    func answerRequestCarriesClientId() async throws {
+        let asked = Sink()
+        let app = VoiceServiceApp.make(config: Configuration(
+            token: "T",
+            replyProvider: { _ in "unused" },
+            alice: AliceConfig(pathSecret: "s3cret", skillId: "skill-1",
+                               inject: { _, _ in },
+                               takeAnswer: { clientId in asked.add(clientId); return nil })
+        ))
+        try await app.test(.router) { client in
+            try await client.execute(
+                uri: "/v1/alice/s3cret", method: .post,
+                body: ByteBuffer(string: """
+                {"meta":{"client_id":"aliced/1.0 (Yandex yandexmini; Linux 1.0)"},
+                 "session":{"new":false,"session_id":"s","skill_id":"skill-1","user_id":"u"},
+                 "request":{"command":"дай ответ","original_utterance":"дай ответ","type":"SimpleUtterance"},
+                 "version":"1.0"}
+                """)
+            ) { _ in }
+        }
+        #expect(asked.all == ["aliced/1.0 (Yandex yandexmini; Linux 1.0)"])
     }
 
     @Test("остальные маршруты по-прежнему требуют токен")
