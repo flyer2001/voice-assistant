@@ -5,27 +5,34 @@
 
 ## Что крутится
 
-Хвост живёт в tmux-сессии **`live-tail`** на VDS — не привязан ни к одной
-Claude-сессии, переживает их закрытие.
+Хвост живёт отдельным процессом под `setsid nohup` — не привязан ни к одной
+Claude-сессии, переживает их закрытие. **В tmux не поднимать:** при нехватке
+памяти на VDS tmux-сервер падает и уносит хвост с собой (ловили 17.09).
 
 ```bash
-tmux ls | grep live-tail                # жив?
+pgrep -af "[l]ive_tail\.sh"              # жив?
 tail -5 /srv/voice-private/live/tail.log    # что делает
-tmux kill-session -t live-tail          # остановить
+ps eww -p <pid> | tr ' ' '\n' | grep VOICE_INJECT_SID   # чей именно
 ```
+
+Остановка — по pid, сверив sid. Шаблоном `pkill -f "live_tail.sh mac-work"`
+гасить нельзя: он накроет все хвосты на хосте, включая чужой рабочий.
 
 Запустить (одна команда, параметры в env):
 
 ```bash
-tmux kill-session -t live-tail 2>/dev/null; tmux new-session -d -s live-tail \
-  "VOICE_REC_DIR='\$HOME/Movies' \
-   VOICE_CHUNK_S=15 \
-   VOICE_INJECT_EVERY=2 \
-   VOICE_INJECT_SID=<sid сессии-слушателя> \
-   VOICE_PROMPT_FILE=/root/projects/voice/bench/podlodka/2026-09/prompt.txt \
-   /root/projects/voice/backend/voice-service/deploy/live-transcribe/live_tail.sh \
-   mac-work /srv/voice-private/live >> /srv/voice-private/live/tail.log 2>&1"
+setsid nohup env \
+  VOICE_REC_DIR='$HOME/Movies' \
+  VOICE_CHUNK_S=30 \
+  VOICE_INJECT_EVERY=1 \
+  VOICE_INJECT_SID=<sid сессии-слушателя> \
+  VOICE_PROMPT_FILE=/root/projects/voice/bench/work/prompt.txt \
+  /root/projects/voice/backend/voice-service/deploy/live-transcribe/live_tail.sh \
+  mac-work /srv/voice-private/live >> /srv/voice-private/live/tail.log 2>&1 < /dev/null &
 ```
+
+Полная последовательность с pre-flight, нянькой и доказательством, что
+транскрипция идёт, — скилл `voice/.claude/skills/prepare-to-rec`.
 
 Хвост дежурит постоянно: Sergey жмёт запись в OBS → конспект пошёл сам;
 остановил запись → через полторы минуты конспект закрыт, хвост ждёт
@@ -41,19 +48,19 @@ tmux kill-session -t live-tail 2>/dev/null; tmux new-session -d -s live-tail \
    в `questions.md` там же
 5. Скриншоты: забрать с мака, вклеить, журнал обновить (ниже)
 
-## Параметры тюнинга (env при запуске tmux-сессии)
+## Параметры тюнинга (env при запуске хвоста)
 
 | параметр | сейчас | что делает |
 |---|---|---|
 | `VOICE_CHUNK_S` | 15 | длина чанка распознавания, сек. Меньше — быстрее видно текст, но короче контекст для whisper (ниже 15 не стоит: рвёт фразы) |
 | `VOICE_INJECT_EVERY` | 2 | сколько чанков копить до инжекта. 15×2 = блок 30 с. Больше — реже дёргается слушатель, но позже видит |
-| `VOICE_INJECT_SID` | sid слушателя | куда летят блоки. **Новая сессия-слушатель = поменять здесь и перезапустить tmux** |
-| `VOICE_PROMPT_FILE` | prompt.txt конференции | словарь техтерминов для whisper. Читается на старте — после правки перезапустить tmux |
+| `VOICE_INJECT_SID` | sid слушателя | куда летят блоки. **Новая сессия-слушатель = поменять здесь и перезапустить хвост** |
+| `VOICE_PROMPT_FILE` | prompt.txt конференции | словарь техтерминов для whisper. Читается на старте — после правки перезапустить хвост |
 | `VOICE_REC_DIR` | `$HOME/Movies` | где OBS пишет записи |
 | `VOICE_ECHO_FILTER` | 1 | фильтр эха своего TTS (ниже). `0` выключает — только если фильтр начнёт резать эфир, и проверять это нужно `echo_baseline.py`, а не на живой записи |
 | `VOICE_WHISPER_URL` | CUDA ubuntu-home | движок распознавания; если ubuntu-home лёг — убрать переменную, но локального fallback в скрипте нет, чинить хост (WoL: `/root/projects/agentops/bin/wake-lan.sh ubuntu-home`, грабли dual-boot — `docs/where-runs-what.md`) |
 
-Смена любого параметра = перезапуск tmux-сессии командой выше. Идущую
+Смена любого параметра = перезапуск хвоста командой выше. Идущую
 запись это НЕ ломает совсем: обработанные-но-недоинжекченные чанки не
 теряются в конспекте (файл дописан), но недоинжекченный буфер пропадёт, и
 **распознавание начнётся с нуля по позиции** — то есть перезапускать лучше
@@ -65,7 +72,7 @@ tmux kill-session -t live-tail 2>/dev/null; tmux new-session -d -s live-tail \
 2. Передать ей промпт слушателя (роль, правила молчания, «голосом никогда»,
    текущий лист ожидания) — образец в истории этой сессии или собрать из
    `docs/live-transcribe.md` раздел «Финальный flow»
-3. Перезапустить tmux с новым `VOICE_INJECT_SID`
+3. Перезапустить хвост с новым `VOICE_INJECT_SID` (и няньку тем же env)
 
 ## Эхо TTS — свой же голос в транскрипции
 
