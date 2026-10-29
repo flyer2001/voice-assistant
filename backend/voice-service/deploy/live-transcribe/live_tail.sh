@@ -18,6 +18,13 @@ mkdir -p "$OUTDIR"
 # они под тестами (test_live_tail_growth.sh, test_echo_wiring.sh).
 . "$(cd "$(dirname "$0")" && pwd)/lib_growth.sh"
 . "$(cd "$(dirname "$0")" && pwd)/lib_echo.sh"
+# Сон хоста под эфиром (28.10 — трижды за день) лечится тремя вещами, и каждая
+# под своим тестом: пульс держателя, будильник, тревога. Плюс замер уровня
+# дорожек: мёртвый микрофон 28.10 стоил всех реплик Sergey на 1:1.
+. "$(cd "$(dirname "$0")" && pwd)/lib_hold.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib_wake.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib_alert.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib_levels.sh"
 CHUNK_S="${VOICE_CHUNK_S:-20}"
 # Каждые сколько чанков инжектить накопленное в сессию-слушателя.
 # 4 чанка по 20с = блок ~80 секунд речи, ~30 инжектов на часовой доклад.
@@ -48,7 +55,46 @@ T2_LABEL="${VOICE_TRACK2_LABEL:-Сергей}"
 ECHO_FILTER="${VOICE_ECHO_FILTER:-1}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
+# ssh-имя машины с whisper: держатель и будильник работают с машиной, а не с
+# URL. Распознавание живёт НЕ на VDS — это ubuntu-home (дуалбут, засыпает).
+WHISPER_HOST="${VOICE_WHISPER_HOST:-ubuntu-home}"
+# Пульс держателя. 0 — выключить (машину держит кто-то другой).
+HOLD_EVERY="${VOICE_HOLD_EVERY:-300}"
+# Сколько отказов подряд считать «хост спит». Один бывает от сетевой икоты.
+WAKE_AFTER="${VOICE_WAKE_AFTER:-2}"
+# Потолок ожидания пробуждения. Замер 29.10: WoL + готовность = 30 с.
+WAKE_CAP_S="${VOICE_WAKE_CAP_S:-120}"
+# Окно дедупликации тревог: отказ повторяется каждый чанк.
+ALERT_EVERY="${VOICE_ALERT_EVERY:-600}"
+# По сколько секунд дорожки мерить при подхвате записи.
+LEVEL_WINDOW_S="${VOICE_LEVEL_WINDOW_S:-60}"
+HOLD_NAME="$(hold_id "${INJECT_SID:-}")"
+HOLD_LAST=0
+ALERT_LAST=0
+WAKE_FAILS=0
+
 FFMPEG_MAC="export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; ffmpeg"
+
+# 💣 Определено ДО pre-flight и вне дежурного цикла: тревога нужна в том числе
+# когда распознавание не поднялось вообще, то есть до первой записи. 28.10
+# хвост молча падал в pre-flight, нянька перезапускала его часами, и Sergey
+# узнал о потере только после встречи.
+inject_to() {  # inject_to <текст>
+  local TARGET_ARGS
+  if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
+  node "$INJECT" "${TARGET_ARGS[@]}" --message "$1" >/dev/null 2>&1
+}
+
+# Тревога: VK (текстом, голос в эфире запрещён) + строка в чат + лог.
+# Дедуп по окну: отказ повторяется каждый чанк, без окна это флуд.
+alert() {  # alert <текст>
+  local now; now="$(date +%s)"
+  [ -n "$(alert_due "$now" "$ALERT_LAST" "$ALERT_EVERY")" ] || return 0
+  ALERT_LAST="$now"
+  alert_fire "$1"
+  if [ -n "$INJECT_SID" ] || [ -n "$INJECT_CWD" ]; then inject_to "⚠️ эфир: $1"; fi
+  echo "$(date +%H:%M:%S) ТРЕВОГА: $1"
+}
 
 # Pre-flight: доказать, что whisper РАБОТАЕТ, а не просто отвечает.
 # /health отдаёт 200 и при мёртвом GPU — на этом 2026-09-24 потеряли дейлик
@@ -96,8 +142,28 @@ find_recording() {
 # Без trap: дальше по коду свой trap на TMP, второй его перетрёт.
 PREFLIGHT_WAV="$(mktemp -u)".wav
 preflight "$PREFLIGHT_WAV"; PREFLIGHT_RC=$?
+# Провал pre-flight почти всегда значит «машина спит», а не «whisper сломан»:
+# 28.10 так было три раза за день. Раньше хвост просто выходил с кодом 1, и
+# нянька перезапускала его по кругу — часами, молча. Теперь будим сами.
+if [ "$PREFLIGHT_RC" -ne 0 ]; then
+  alert "pre-flight провален — пробую разбудить $WHISPER_HOST"
+  if wake_host "$WHISPER_HOST" "$WHISPER/health" "$WAKE_CAP_S"; then
+    echo "$(date +%H:%M:%S) $WHISPER_HOST поднят, повторяю pre-flight"
+    preflight "$PREFLIGHT_WAV"; PREFLIGHT_RC=$?
+  fi
+fi
 rm -f "$PREFLIGHT_WAV"
-[ "$PREFLIGHT_RC" -eq 0 ] || exit 1
+if [ "$PREFLIGHT_RC" -ne 0 ]; then
+  alert "распознавание не поднялось — конспект будет пустым, запись идёт в файл"
+  exit 1
+fi
+# Держатель ставим сразу: сторож простоя на хосте проверяется раз в 5 минут, и
+# без держателя машина может уснуть ещё до первого чанка.
+hold_touch "$WHISPER_HOST" "$HOLD_NAME" || echo "$(date +%H:%M:%S) держатель не поставился"
+HOLD_LAST="$(date +%s)"
+# Снять держатель обязательно, иначе машина не уснёт никогда (29.10 на хосте
+# нашёлся чужой файл от 27.10 — трое суток без сна).
+trap 'hold_drop "$WHISPER_HOST" "$HOLD_NAME"; exit' INT TERM
 
 while true; do   # дежурный цикл: запись за записью
 
@@ -127,6 +193,24 @@ START_HHMMSS="$(echo "$BASE" | sed -nE 's/.*[ _]([0-9]{2})-([0-9]{2})-([0-9]{2})
 [ -s "$OUT" ] || printf '# Живой конспект\n\nЗапись: %s (старт %s)\n\n---\n\n' \
   "$BASE" "$START_HHMMSS" > "$OUT"
 
+# 💣 Уровень дорожек меряем СРАЗУ, а не после эфира. 28.10 на 1:1 микрофон
+# писал пустой источник (−40 dB, пики-щелчки), узнали после встречи — реплики
+# Sergey потеряны целиком. Один замер в начале давал минуту на починку.
+# ⚠️ Старт не блокируется (решение Sergey 28.10): ложное срабатывание не должно
+# стоить записи эфира, поэтому вердикт только сообщается.
+for TRACK in $(seq 1 "$TRACKS_WANTED"); do
+  LVL_DB="$(levels_measure "$HOST" "$REC" "$TRACK" "$LEVEL_WINDOW_S")"
+  LVL_V="$(level_verdict "$LVL_DB")"
+  LVL_LINE="$(level_line "$TRACK" "$LVL_DB" "$LVL_V")"
+  echo "$(date +%H:%M:%S) $LVL_LINE"
+  printf '%s\n' "- $LVL_LINE" >> "$OUT"
+  case "$LVL_V" in
+    dead)  alert "$LVL_LINE — проверь источник в OBS, иначе эта половина эфира потеряна" ;;
+    quiet) alert "$LVL_LINE" ;;
+  esac
+done
+printf '\n' >> "$OUT"
+
 # Смещение старта. Нужно, когда дейлик и груминг пишутся ОДНОЙ записью:
 # хвост перезапускают посреди файла, и без этого он перегонит с нуля всё уже
 # разобранное — дубли в конспекте и сотня инжектов в чат. Применяется только
@@ -146,12 +230,6 @@ MEETING="${VOICE_MEETING:-live}"
 # повторять каждое сообщение». Теперь правила уходят ОДИН раз преамбулой на
 # запись, а блок несёт только машиночитаемый тег. Имя встречи тоже было зашито
 # («подлодка-live») и врало на любой другой встрече — стало параметром.
-inject_to() {  # inject_to <текст>
-  local TARGET_ARGS
-  if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
-  node "$INJECT" "${TARGET_ARGS[@]}" --message "$1" >/dev/null 2>&1
-}
-
 send_preamble() {  # один раз на запись, не на блок
   [ -n "$PREAMBLE_SENT" ] && return 0
   [ -n "$INJECT_SID" ] || [ -n "$INJECT_CWD" ] || return 0
@@ -179,7 +257,7 @@ $BUF" >/dev/null 2>&1       && echo "$(date +%H:%M:%S) инжект блока $
   BUF=""; BUF_FROM=""; CHUNKS_IN_BUF=0
 }
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; hold_drop "$WHISPER_HOST" "$HOLD_NAME"' EXIT
 
 PROMPT_ARG=()
 [ -n "$PROMPT_FILE" ] && [ -f "$PROMPT_FILE" ] && \
@@ -210,8 +288,19 @@ while true; do
       break ;;
   esac
 
+  # Пульс держателя: сторож простоя на хосте считает держатель протухшим через
+  # KEEPAWAKE_TTL (час), а with-host.sh --hold создаёт файл один раз. 28.10
+  # держатель умер на первом часу, эфир шёл четвёртый — машина уснула законно.
+  if [ -n "$(hold_due "$(date +%s)" "$HOLD_LAST" "$HOLD_EVERY")" ]; then
+    hold_touch "$WHISPER_HOST" "$HOLD_NAME" \
+      || echo "$(date +%H:%M:%S) пульс держателя не дошёл до $WHISPER_HOST"
+    HOLD_LAST="$(date +%s)"
+  fi
+
   TC=$(hhmmss "$POS")
   GOT_ANY=""
+  OK_ANY=""        # хоть одна дорожка получила HTTP 200
+  LAST_CODE=""     # код последнего ответа — для вердикта будильника
 
   for TRACK in $(seq 1 "$TRACKS"); do
     W="$TMP/c$TRACK.wav"
@@ -244,6 +333,9 @@ while true; do
     CODE="${RESP##*$'\n'}"
     BODY="${RESP%$'\n'*}"
     TEXT="$(printf '%s' "$BODY" | jq -r '.text // empty' 2>/dev/null)"
+    LAST_CODE="$CODE"
+    # Тишина при 200 — тоже успех: модель отработала, просто в куске нет речи.
+    [ "$CODE" = "200" ] && OK_ANY=1
 
     # Метка спикера нужна только когда дорожек правда две: в одномиксовом
     # режиме «эфир» перед каждой строкой — шум, а не информация.
@@ -282,7 +374,35 @@ $LINE"
     # получалось from == to, и два разных куска выглядели одним таймкодом.
     [ "$CHUNKS_IN_BUF" -ge "$INJECT_EVERY" ] && flush_buffer "$(hhmmss $((POS + CHUNK_S)))"
   fi
-  POS=$((POS + CHUNK_S))
+
+  # 💣 Серия отказов распознавания = «хост спит». 28.10 хвост вместо этого
+  # двигал позицию вперёд на каждом отказе: полтора часа эфира исчезли,
+  # хотя запись на маке была цела. Решение Sergey 28.10 — будить самому.
+  if [ -n "$OK_ANY" ]; then WAKE_CODE=200; else WAKE_CODE="${LAST_CODE:-000}"; fi
+  read -r WAKE_VERDICT WAKE_FAILS <<<"$(wake_verdict "$WAKE_CODE" "$WAKE_FAILS" "$WAKE_AFTER")"
+  case "$WAKE_VERDICT" in
+    wake)
+      alert "распознавания нет ${WAKE_FAILS} чанка подряд (HTTP $WAKE_CODE) — бужу $WHISPER_HOST"
+      if wake_host "$WHISPER_HOST" "$WHISPER/health" "$WAKE_CAP_S"; then
+        echo "$(date +%H:%M:%S) $WHISPER_HOST поднят, повторяю чанк $TC"
+        hold_touch "$WHISPER_HOST" "$HOLD_NAME" || true
+        HOLD_LAST="$(date +%s)"
+        WAKE_FAILS=0
+      else
+        alert "$WHISPER_HOST не поднялся за ${WAKE_CAP_S}с — распознавания нет, запись цела, догоним из файла"
+      fi ;;
+    retry)
+      echo "$(date +%H:%M:%S) отказ распознавания (HTTP $WAKE_CODE), чанк $TC не теряю"
+      sleep 5 ;;
+    bad)
+      # 4xx — машина жива, запрос кривой. Будить бесполезно, и чанк не вернуть.
+      alert "whisper отвечает HTTP $WAKE_CODE — запрос не принят, чанк $TC пропущен" ;;
+  esac
+
+  # Позиция не двигается, пока распознавание не вернулось: иначе чанк потерян
+  # навсегда. Исключение — 4xx: его повтор даст тот же отказ.
+  [ "$WAKE_VERDICT" = "bad" ] && OK_ANY=1
+  POS="$(pos_next "$OK_ANY" "$POS" "$CHUNK_S")"
 done
 flush_buffer "$(hhmmss "$POS")"
 touch "$OUTDIR/.done-$BASE"
