@@ -1,5 +1,7 @@
 # iOS app — Voice Assistant
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](../docs/INDEX.md)
+
 iPhone-app target для voice-assistant v0.1. Использует `VoiceAssistant` Swift Package из корня repo как local dep + WhisperKit для on-device STT.
 
 ## Структура

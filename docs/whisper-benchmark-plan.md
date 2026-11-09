@@ -1,5 +1,7 @@
 # Whisper / Gemma / Apple Speech — STT benchmark plan
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
+
 > Voice-локальная адаптация бенчмарка из `myRep/_project-hub/hypotheses/HYP-028-voice-ai-infrastructure.md`, секция **«[NEW 2026-06-05] Win-home характеристики + Gemma 4 vs Whisper benchmark plan»**. HYP-028 — источник методологии, метрик и фаз. Этот документ расширяет план под нужды voice-assistant v0.1: **iPhone on-device кандидаты** (WhisperKit, SFSpeechRecognizer, Apple SpeechAnalyzer), **полный корпус команд** с quiet/noisy split, и **GSM-band emulation** для проверки feasibility HYP-045 (voice IVR через звонок).
 
 ## Цель

@@ -1,5 +1,7 @@
 # mac-home dev setup
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
+
 > Workflow split: voice client developed on **mac-home** (full Xcode +
 > XcodeBuildMCP), voice backend developed on a **dev VDS** (Hummingbird
 > service deployed there). Single GitHub repo, two cwd-keyed Claude

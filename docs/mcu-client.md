@@ -1,5 +1,7 @@
 # MCU voice client (wearable, non-BT)
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
+
 **Ветка Phase 7** — альтернатива iOS/macOS клиентам. Носимый девайс:
 BC-гарнитура + PTT-кнопка + WiFi через iPhone hotspot / home / Alice /
 кафе. Без Bluetooth рядом с головой (у Sergey от BT-наушников быстро

@@ -42,6 +42,8 @@ Codex/runtime они не подтверждают.
 
 - [Остаток дейлика 30.10](../.claude/handoff/2026-11-07-from-claude-cf80bea0.md) — источник и следующий шаг.
 
+- [Handoff следующей сессии](../.claude/handoff/2026-11-09-next-session.md) — OBS, native-доставка, остатки и проверки.
+
 ## Активное
 
 - [Приёмка home-machines 2.0.0 из voice](home-machines-2-verification-2026-11-06.md) —

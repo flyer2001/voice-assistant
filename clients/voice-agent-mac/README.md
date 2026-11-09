@@ -1,5 +1,7 @@
 # voice-agent-mac (Path A)
 
+[README — вход](../../README.md) · [Стратегия](../../STRATEGY.md) · [Индекс документов](../../docs/INDEX.md)
+
 Hands-free voice assistant для macOS. Porcupine wake word активирует OpenAI
 Realtime API, диалог идёт стримом. ~500 ms до первого звука ответа.
 

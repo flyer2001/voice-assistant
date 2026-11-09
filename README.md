@@ -1,29 +1,58 @@
 # voice-assistant
 
-Push-to-talk → on-device STT → текст → backend → reply в bubble.
+Удобный двусторонний голосовой интерфейс для работы с агентами: управление
+сессиями голосом, прослушивание ответов, обсуждение идей и использование
+контекста встреч для своевременных уточнений и договорённостей.
 
-**Не «голосовой ассистент» Siri-style.** Параллельный канал к Happy app
-для ситуаций когда руки/глаза заняты (за рулём, на пробежке, между
-встречами).
+## Карта проекта
 
-См. [VISION.md](VISION.md) и [MVP.md](MVP.md).
+README — основная точка входа для Sergey и любой новой проектной сессии.
 
-## Структура
+| Уровень | Куда идти | На какой вопрос отвечает |
+|---|---|---|
+| Миссия и принципы | [VISION](VISION.md) | Зачем существует voice, что важно и какие границы соблюдаем? |
+| Стратегия | [STRATEGY](STRATEGY.md) | Какие направления ведут к миссии, как замечаем неуспех и оцениваем сложность? |
+| Тактика | [Текущие задачи](.claude/TASKS.md), [отложенные варианты](.claude/BACKLOG.md) | Что делаем сейчас, что ждёт и по какому сигналу работа завершена? |
+| Устройство и эксплуатация | [Индекс документов](docs/INDEX.md) | Как устроен конкретный сценарий, где контракт, инструкция и обоснование? |
+| Результаты и пересмотр | [CHANGELOG](.claude/CHANGELOG.md) | Что изменилось и какие наблюдения влияют на дальнейшие решения? |
+| История замысла | [MVP](MVP.md), [исходный VISION](VISION.md.snapshots/pre-mission-2026-11-03.md) | Откуда пришли решения и какие ограничения относятся к прошлым этапам? |
 
-- `VISION.md` — что и зачем
-- `MVP.md` — scope первой итерации
-- `CLAUDE.md` — правила проектной сессии
-- `.claude/TESTING.md` — TDD-стратегия (читать ДО первого теста)
-- `.claude/TASKS.md` — текущие задачи (создаётся при старте сессии)
-- `specs/backend-protocol.md` — wire-контракт клиент↔backend (адаптеро-нейтральный)
-- `Sources/VoiceAssistant/Backend/` — Swift package, `BackendAdapter` protocol + реализации
-- `scripts/setup-mac-home.sh` — one-shot dev environment setup for mac-home (Homebrew, gh, node, XcodeBuildMCP)
-- `docs/mac-home-setup.md` — split клиент (mac-home) / backend (VDS), MCP config snippets
-- `iOS/` — SwiftUI client (после v0.1 старта)
-- `macOS/` — SwiftUI menu bar app (v0.1 primary, см. MVP)
-- `backend/` — Hummingbird 2 endpoint на VDS (отдельный systemd unit)
+Читать сверху вниз для понимания проекта; из технического документа можно
+вернуться через индекс к стратегии и миссии. Для новой сессии после этой
+карты: [правила проекта для Codex](AGENTS.md), текущие инструкции среды,
+[задачи](.claude/TASKS.md) и последние записи [истории](.claude/CHANGELOG.md).
+[Исторические Claude-правила](CLAUDE.md) сохранены; runtime-команды требуют
+отдельной проверки применимости в Codex. [Карта переноса правил](docs/project-rules-migration.md)
+отделяет выполненное от ещё не проверенных памяти, skills и runtime.
 
-## Архитектура (кратко)
+Правило сопровождения карты: новый или существенно изменённый документ
+получает входящую ссылку из ближайшего индекса/родительского документа,
+обратную ссылку и ссылки на связанные основания или результаты. Новую задачу
+связываем с направлением стратегии и критерием завершения; результат —
+с решением и наблюдениями. Неизменяемые снапшоты сохраняются как есть:
+возврат из них — средствами просмотра или через содержащий их каталог.
+
+[Переиспользуемый промпт методологии](docs/mission-strategy-method-prompt.md)
+с примером voice — как обсуждаем миссию, выводим стратегию и пересматриваем тактику.
+
+[Переключение домашней ОС с VDS: winup / windown](docs/home-os-shortcuts.md).
+
+[Продолжение после 09.11](.claude/handoff/2026-11-09-next-session.md) — подготовка записи и открытые хвосты.
+
+## Код и контракты
+
+- [Backend contract](specs/backend-protocol.md) — интерфейс клиент–backend.
+- [Swift package](Sources/VoiceAssistant/) и [тесты](Tests/).
+- [Backend](backend/voice-service/) и [его deployment](backend/voice-service/deploy/README.md).
+- Клиенты: [iOS](iOS/README.md), [Mac voice-agent](clients/voice-agent-mac/README.md),
+  [macOS PTT](clients/macos-ptt/README.md).
+- [TDD-стратегия](.claude/TESTING.md), [подготовка mac-home](docs/mac-home-setup.md).
+
+## Исходная архитектура (историческая справка)
+
+Этот раздел описывает ранний план, а не проверенный сегодня deployment.
+Историческая [карта размещения](docs/where-runs-what.md) подробнее описывает
+поздние контуры; текущую работоспособность проверяем отдельно.
 
 Клиент — SwiftUI shared (iOS + macOS), AVFoundation для capture, WhisperKit
 для on-device STT. Никакого raw audio в сеть.

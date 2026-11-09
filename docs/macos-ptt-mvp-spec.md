@@ -1,5 +1,7 @@
 # macOS PTT prototype — MVP spec (P0)
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
+
 **Phase 7 P0.** Прожить UX голосового PTT-flow до траты денег на MCU-железо.
 Одна неделя dogfooding'а на mac-home → решение continue/cancel Phase 7.
 

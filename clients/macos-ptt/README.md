@@ -1,5 +1,7 @@
 # voice-ptt (macOS PTT prototype)
 
+[README — вход](../../README.md) · [Стратегия](../../STRATEGY.md) · [Индекс документов](../../docs/INDEX.md)
+
 **Phase 7 P0** — прожить UX голосового PTT до траты денег на железо.
 
 Global hotkey → mic capture → `POST /v1/voice/audio` → transcript

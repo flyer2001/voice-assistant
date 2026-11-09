@@ -1,5 +1,10 @@
 # MVP — voice
 
+[README — вход](README.md) · [Стратегия](STRATEGY.md) · [Индекс документов](docs/INDEX.md)
+
+История первых итераций. Текущие миссия и принцип core/feature —
+в [VISION.md](VISION.md); старые ограничения MVP не задают весь нынешний scope.
+
 > Scope первой итерации. Подробности по милстоунам — в `.claude/CHANGELOG.md`.
 > Открытые задачи — в `.claude/TASKS.md`.
 

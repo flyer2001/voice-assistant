@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# version: 1.0.0 — 2026-11-06
+# reason: short VDS entrypoint to the existing agentops OS switcher.
+# Explicit --force only; no sessions, tmux, or alternate switching logic.
+set -euo pipefail
+force=(); preview=0
+for arg in "$@"; do
+  case "$arg" in
+    --force) force=(--force) ;;
+    --dry-run) preview=1 ;;
+    --help|-h) echo "windown [--dry-run] [--force] — switch to ubuntu and wait; respects host lease by default"; exit 0 ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+switcher="${HOME_OS_SWITCH_BIN:-/root/projects/agentops/bin/os-switch.sh}"
+command=("$switcher" ubuntu --wait "${force[@]}")
+if (( preview )); then printf '%q ' "${command[@]}"; printf '\n'; exit 0; fi
+exec "${command[@]}"

@@ -1,10 +1,12 @@
 ---
-version: 1.0.0
-bumped: 2026-08-01
-bumped_reason: "sanity-check на реальных данных: preconditions, test-filter, битый путь transcripts"
+version: 1.0.1
+bumped: 2026-11-03
+bumped_reason: patch — добавлена обратная навигация по карте проекта; содержание без изменений
 ---
 
 # Voice pattern analysis — Phase 6 F5 spec
+
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
 
 On-demand analysis of войс-запросов от Sergey за N дней. Zero infra в
 prod — всё on-request через subagent. Output — markdown report в

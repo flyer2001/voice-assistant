@@ -1,5 +1,7 @@
 # macOS PTT — week dogfooding log
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
+
 **Cycle:** ______ (YYYY-MM-DD → YYYY-MM-DD)
 
 Заполнять руками в течение недели + один финальный проход.

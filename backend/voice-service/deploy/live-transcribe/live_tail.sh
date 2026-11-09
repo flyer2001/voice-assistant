@@ -25,6 +25,7 @@ mkdir -p "$OUTDIR"
 . "$(cd "$(dirname "$0")" && pwd)/lib_wake.sh"
 . "$(cd "$(dirname "$0")" && pwd)/lib_alert.sh"
 . "$(cd "$(dirname "$0")" && pwd)/lib_levels.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib_inject.sh"
 CHUNK_S="${VOICE_CHUNK_S:-20}"
 # Каждые сколько чанков инжектить накопленное в сессию-слушателя.
 # 4 чанка по 20с = блок ~80 секунд речи, ~30 инжектов на часовой доклад.
@@ -79,12 +80,6 @@ FFMPEG_MAC="export PATH=/opt/homebrew/bin:/usr/local/bin:\$PATH; ffmpeg"
 # когда распознавание не поднялось вообще, то есть до первой записи. 28.10
 # хвост молча падал в pre-flight, нянька перезапускала его часами, и Sergey
 # узнал о потере только после встречи.
-inject_to() {  # inject_to <текст>
-  local TARGET_ARGS
-  if [ -n "$INJECT_SID" ]; then TARGET_ARGS=(--to-sid "$INJECT_SID"); else TARGET_ARGS=(--to-cwd "$INJECT_CWD"); fi
-  node "$INJECT" "${TARGET_ARGS[@]}" --message "$1" >/dev/null 2>&1
-}
-
 # Тревога: VK (текстом, голос в эфире запрещён) + строка в чат + лог.
 # Дедуп по окну: отказ повторяется каждый чанк, без окна это флуд.
 alert() {  # alert <текст>

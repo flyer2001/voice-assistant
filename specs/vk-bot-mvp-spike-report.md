@@ -1,5 +1,7 @@
 # Phase 0 Spike Report — 2026-06-22
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](../docs/INDEX.md)
+
 ## SP1 — VK audio_message shape ✅
 
 **Source**: `Sources/VKAdapter/VKModels.swift` + memory `reference-vk-bot-contracts.md`

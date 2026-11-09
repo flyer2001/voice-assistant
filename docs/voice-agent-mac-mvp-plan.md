@@ -1,5 +1,7 @@
 # voice-agent-mac MVP — план (2026-07-13)
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](INDEX.md)
+
 **Цель:** живой голосовой ассистент на mac-home с фокусом на проекты + push-нотификации от других Claude сессий (heartbeat). Прототип, потом порт на CoreS3 wearable.
 
 **Repo:** `voice-repo/clients/voice-agent-mac/` (внутри существующего, отдельный не создаём).

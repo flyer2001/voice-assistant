@@ -1,5 +1,7 @@
 # whisper-server (ubuntu-home)
 
+[README — вход](../../../../README.md) · [Стратегия](../../../../STRATEGY.md) · [Индекс документов](../../../../docs/INDEX.md)
+
 STT-релей для VK-пути. `faster-whisper-large-v3-turbo` на CUDA fp16.
 
 - **Хост:** ubuntu-home, `192.168.88.13:8000` (виден с VDS через WireGuard)

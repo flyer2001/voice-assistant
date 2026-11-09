@@ -1,5 +1,7 @@
 # Deployment — voice-backend
 
+[README — вход](../../../README.md) · [Стратегия](../../../STRATEGY.md) · [Индекс документов](../../../docs/INDEX.md)
+
 Local build → systemd → port 8089 (WireGuard internal IP). HTTPS exposure
 optional через nginx reverse proxy.
 

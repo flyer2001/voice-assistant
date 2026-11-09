@@ -1,5 +1,7 @@
 # TDD-стратегия — voice
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](../docs/INDEX.md)
+
 > Адаптация cashflow/.claude/TESTING.md + гипотезы из myRep/_project-hub
 > (HYP-036, HYP-043, HYP-010, HYP-004, HYP-030) под voice стэк:
 > Swift / SwiftUI shared, WhisperKit on-device, AVFoundation, Hummingbird 2

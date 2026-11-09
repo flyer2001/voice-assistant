@@ -1,5 +1,7 @@
 # Backend protocol — v1
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](../docs/INDEX.md)
+
 > Contract any backend implementation must honor for the voice client to
 > work against it. **Self-contained.** No references to private
 > infrastructure — concrete deployments (DispatcherAdapter,

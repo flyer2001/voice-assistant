@@ -1,5 +1,7 @@
 # VK Bot MVP — E2E scenarios (для согласования)
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md) · [Индекс документов](../docs/INDEX.md)
+
 > **Status**: DRAFT. Согласовать с Sergey → frozen → переходим в TDD ladder.
 > **Scope**: voice in от Sergey через VK DM → Whisper STT → echo транскрипция
 > + Happy inject → text reply в VK DM. **No TTS** (text-only reply на MVP).
