@@ -1,10 +1,56 @@
 # docs/ — voice
 
+[README — вход](../README.md) · [Стратегия](../STRATEGY.md)
+
 Спеки и планы. История сессий — [`.claude/CHANGELOG.md`](../.claude/CHANGELOG.md),
 открытые задачи — [`.claude/TASKS.md`](../.claude/TASKS.md), отложенное —
 [`.claude/BACKLOG.md`](../.claude/BACKLOG.md).
 
+## Уровни карты
+
+[Правила проектной сессии](../AGENTS.md) — обязательная связь решений
+с миссией и сопровождение навигации.
+[Карта переноса правил](project-rules-migration.md) — источники, снимки и
+непроверенные остатки миграции.
+
+[README — основная точка входа](../README.md) →
+[миссия и принципы](../VISION.md) → [стратегия](../STRATEGY.md) →
+[текущие задачи](../.claude/TASKS.md).
+
+Ниже — устройство, обоснования и история технических решений. Даты и старые
+статусы в документах — свидетельства прошлых проверок; сегодняшнюю готовность
+Codex/runtime они не подтверждают.
+
+## Методология
+
+- [Промпт: миссия → стратегия → тактика](mission-strategy-method-prompt.md) —
+  прожарка миссии, core/feature, проверка гипотез, упрощение и карта документов;
+  пример применения в voice включён.
+
+## Контракты, проверка и исторические итерации
+
+- [Backend contract](../specs/backend-protocol.md) — независимый интерфейс.
+- [VK MVP: сценарии](../specs/vk-bot-mvp.md) и [отчёт spike](../specs/vk-bot-mvp-spike-report.md).
+- [TDD-стратегия](../.claude/TESTING.md) — защита контрактов.
+- [MVP](../MVP.md) — история этапов.
+- [Deployment backend](../backend/voice-service/deploy/README.md),
+  [STT-сервер](../backend/voice-service/deploy/whisper-server/README.md),
+  [live-transcribe deployment](../backend/voice-service/deploy/live-transcribe/README.md),
+  [врапперы ответа](../backend/voice-service/deploy/vds-wrappers/README.md).
+- Клиенты: [Mac voice-agent](../clients/voice-agent-mac/README.md),
+  [macOS PTT](../clients/macos-ptt/README.md), [iOS](../iOS/README.md).
+
+- [Остаток дейлика 30.10](../.claude/handoff/2026-11-07-from-claude-cf80bea0.md) — источник и следующий шаг.
+
 ## Активное
+
+- [Приёмка home-machines 2.0.0 из voice](home-machines-2-verification-2026-11-06.md) —
+  detect/WoL проверены, OS-switch/STT заблокированы активным Windows-сеансом.
+
+
+- [Короткие команды winup/windown на VDS](home-os-shortcuts.md) — существующий
+  OS-switch без запуска сессий; отличие от человеческих команд на Mac.
+
 
 - [Где что крутится](where-runs-what.md) — карта прода: какая машина за что
   отвечает, два разных Whisper (ubuntu-home для VK, mac-home для микрофона),
