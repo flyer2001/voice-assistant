@@ -18,10 +18,6 @@ async callback + TTS dual channel (2026-07-05), Phase 6 focus routing
 [Handoff следующей сессии](handoff/2026-11-09-next-session.md). Все оставшиеся работы
 перенесены по просьбе Sergey 09.11.
 
-- [ ] Проверить OBS, оба звуковых источника и изображение перед дейликом,
-      начать запись по текущему сигналу Sergey и подтвердить рост файла.
-      Доставка чанков в текущий [vendor:codex] тред требует проверки нового
-      native-транспорта. Подготовка выполнялась при close, статус в CHANGELOG.
 - [ ] Догнать запись 30.10 и обещанную сводку. [Handoff](handoff/2026-11-07-from-claude-cf80bea0.md).
       Отложено ради close и ближайшего дейлика, владелец voice.
 - [ ] [vendor:codex] Перевести VK и live-transcribe на inject-native для
@@ -97,6 +93,10 @@ async callback + TTS dual channel (2026-07-05), Phase 6 focus routing
 
 ## Ждём внешнего ответа / решения Sergey
 
+- [ ] **Swap основного чата ассистента и адрес Алисы** — agentops проектирует
+      общую процедуру смены чата, переключение адресата и откат. Inbox
+      `01a1bfc4-ce2c-741f-ab1a-c7c45ef50014`, accepted. Дальше — предложение
+      agentops для сверки с [маршрутом Алисы](../docs/alice-skill-input.md#нативный-маршрут-алисы-vendorcodex).
 - [ ] **Чистка семи строк с мёртвым sid** в реестре sessions-db — решение
       Sergey. Цена уже видна: 30.09 resolve_target отдал архивный sid живой
       сессии, инжект ушёл бы в пустоту с кодом 200
