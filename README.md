@@ -37,7 +37,8 @@ README — основная точка входа для Sergey и любой н
 
 [Переключение домашней ОС с VDS: winup / windown](docs/home-os-shortcuts.md).
 
-[Продолжение после 09.11](.claude/handoff/2026-11-09-next-session.md) — подготовка записи и открытые хвосты.
+[Close 11–12.11](.claude/handoff/2026-11-12-close-01a1c99e.md) — результаты встреч,
+передача Redash, OpenComm2, WIP и открытые проверки.
 
 ## Код и контракты
 

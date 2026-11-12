@@ -42,12 +42,18 @@ Codex/runtime они не подтверждают.
 
 - [Остаток дейлика 30.10](../.claude/handoff/2026-11-07-from-claude-cf80bea0.md) — источник и следующий шаг.
 
-- [Handoff следующей сессии](../.claude/handoff/2026-11-09-next-session.md) — OBS, native-доставка, остатки и проверки.
+- [Close 11–12.11](../.claude/handoff/2026-11-12-close-01a1c99e.md) — встречи,
+  Redash, OpenComm2, native-доставка, WIP и проверки.
 
 ## Активное
 
+- [OpenComm2 C120, управление и голосовой диалог](</root/projects/myRep/Shokz OpenComm2 bluetooth гарнитура.md>) —
+  личная справка в myRep про принудительный выбор iPhone/Mac, кнопки версии
+  2025, прошивки, опыт владельцев и варианты входа через Siri/Voice.
+
 - [Приёмка home-machines 2.0.0 из voice](home-machines-2-verification-2026-11-06.md) —
-  detect/WoL проверены, OS-switch/STT заблокированы активным Windows-сеансом.
+  состояние 06.11 и Windows-блокер. [Проверка 11.11](../.claude/handoff/2026-11-12-close-01a1c99e.md#рабочее-дерево-и-проверки)
+  подтвердила WoL и STT под hold, OS-switch ещё проверить.
 
 
 - [Короткие команды winup/windown на VDS](home-os-shortcuts.md) — существующий
