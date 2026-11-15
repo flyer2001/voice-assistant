@@ -44,6 +44,8 @@ Codex/runtime они не подтверждают.
 
 - [Close 11–12.11](../.claude/handoff/2026-11-12-close-01a1c99e.md) — встречи,
   Redash, OpenComm2, native-доставка, WIP и проверки.
+- [Checkpoint 15.11](../.claude/handoff/2026-11-15-sip-checkpoint.md) — проба
+  Linphone без VPN, состояние регистрации и исходный голосовой чат.
 
 ## Активное
 
