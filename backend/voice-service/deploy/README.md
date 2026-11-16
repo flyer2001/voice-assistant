@@ -5,6 +5,9 @@
 Local build → systemd → port 8089 (WireGuard internal IP). HTTPS exposure
 optional через nginx reverse proxy.
 
+[SIP-команды паузы/старта](sip-dialog/README.md) — локальный Vosk только
+на время отвеченного вызова, AudioSocket и измеренные ресурсы VDS.
+
 ## Steps (one-shot install)
 
 ```bash

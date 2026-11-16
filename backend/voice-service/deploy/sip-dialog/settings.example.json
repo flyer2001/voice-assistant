@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "date": "2026-11-16",
+  "reason": "Initial per-call local commands and quiet presence pulse",
+  "start_phrase": "голосовой помощник слушай",
+  "stop_phrase": "голосовой помощник пауза",
+  "heartbeat_seconds": 45
+}

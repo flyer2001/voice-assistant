@@ -1,0 +1,111 @@
+{
+  "cpu_units": "percent of one logical CPU; VDS has 2 vCPU",
+  "idle": {
+    "duration_s": 10.0,
+    "added_worker_pids": [],
+    "added_worker_cpu_percent": 0.0,
+    "existing_service_cpu_percent_one_core": {
+      "voice-sip-probe.service": 1.293,
+      "voice-sip-dialog.service": 0.0
+    }
+  },
+  "paused_paced_stream": {
+    "event": "voice_control_finished",
+    "pid": 2414091,
+    "load_wall_s": 2.567,
+    "load_cpu_s": 1.778,
+    "run_wall_s": 25.003,
+    "run_cpu_s": 0.58,
+    "rss_peak_mib": 211.5,
+    "counts": {
+      "heartbeats": 3
+    },
+    "modes_s": {
+      "paused": 24.980374444043264
+    },
+    "error": "",
+    "mode": "paused",
+    "requests": [],
+    "output_seconds": 25.0,
+    "worker_exited": true,
+    "cpu_percent_one_core": 2.32
+  },
+  "dialog_paced_stream": {
+    "event": "voice_control_finished",
+    "pid": 2489001,
+    "load_wall_s": 2.636,
+    "load_cpu_s": 1.965,
+    "run_wall_s": 26.999,
+    "run_cpu_s": 1.768,
+    "rss_peak_mib": 214.9,
+    "counts": {
+      "starts": 1,
+      "ordinary_stt_requests": 1,
+      "stops": 1,
+      "heartbeats": 1
+    },
+    "modes_s": {
+      "paused": 11.151769728050567,
+      "ready": 0.19884836598066613,
+      "listening": 8.610063137020916,
+      "thinking": 0.01126498996745795,
+      "speaking": 6.9933957399916835
+    },
+    "command_events": [
+      {
+        "action": "start",
+        "at_s": 4.166
+      },
+      {
+        "action": "stop",
+        "at_s": 20.003
+      }
+    ],
+    "error": "",
+    "mode": "dialog",
+    "requests": [
+      107521
+    ],
+    "output_seconds": 26.8,
+    "worker_exited": true,
+    "cpu_percent_one_core": 6.55,
+    "stop_after_phrase_end_s": 0.546
+  },
+  "native_tls_srtp_call": {
+    "event": "voice_control_finished",
+    "pid": 2542744,
+    "load_wall_s": 5.245,
+    "load_cpu_s": 2.541,
+    "run_wall_s": 17.134,
+    "run_cpu_s": 0.95,
+    "rss_peak_mib": 214.6,
+    "counts": {
+      "starts": 1,
+      "stops": 1
+    },
+    "modes_s": {
+      "paused": 10.379307386057917,
+      "ready": 0.21607312298147008,
+      "listening": 6.491725771978963
+    },
+    "command_events": [
+      {
+        "action": "start",
+        "at_s": 4.269
+      },
+      {
+        "action": "stop",
+        "at_s": 10.938
+      }
+    ],
+    "error": "",
+    "cpu_percent_one_core": 5.54,
+    "worker_exited": true
+  },
+  "limitations": [
+    "Short synthetic command fixtures; actual user/headset false-accept rate not measured",
+    "Paced dialog substitutes only the external STT/agent boundary; excludes its computation",
+    "Added worker exits at hangup; existing SIP/broker services remain separate",
+    "Model file pages may remain in reclaimable OS cache after process exit"
+  ]
+}
