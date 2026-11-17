@@ -1,0 +1,7 @@
+; version: 1.0.0
+; date: 2026-11-17
+; reason: release an abandoned call when the client stops sending RTP.
+; Insert into the EXISTING type=endpoint section, not the AOR section.
+; This measures received RTP, not speech or application-level voice pause.
+; Clients using silence suppression must be checked before relying on it.
+rtp_timeout=60
