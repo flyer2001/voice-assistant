@@ -5,14 +5,18 @@ from control import normalize
 
 
 class CommandDetector:
-    def __init__(self, model_path, phrases):
+    def __init__(self, model_path, phrases, reject_phrases=()):
         # Intentionally inside construction: there is no process/model without a call.
         import vosk
         vosk.SetLogLevel(-1)
         self._vosk = vosk
         self.model = vosk.Model(str(model_path))
         self.phrases = set(map(normalize, phrases))
-        self.recognizer = vosk.KaldiRecognizer(self.model, 16000, json.dumps([*self.phrases, '[unk]'], ensure_ascii=False))
+        # Explicit acoustic alternatives prevent a tiny grammar from forcing
+        # similar names into a command. Only self.phrases can trigger an action.
+        contrasts = set(map(normalize, reject_phrases)) - self.phrases
+        grammar = sorted(self.phrases | contrasts) + ['[unk]']
+        self.recognizer = vosk.KaldiRecognizer(self.model, 16000, json.dumps(grammar, ensure_ascii=False))
         self._resample_state = None
         self._buffer = bytearray()
         self._hangover = 0

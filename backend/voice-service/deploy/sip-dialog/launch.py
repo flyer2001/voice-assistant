@@ -67,8 +67,11 @@ def main():
             start_phrase=settings.get('start_phrase','голосовой помощник слушай')
             stop_phrase=settings.get('stop_phrase','голосовой помощник пауза')
             heartbeat=float(settings.get('heartbeat_seconds',45))
+            rejects=settings.get('reject_phrases',[])
             if not 0 <= heartbeat <= 300 or not all(isinstance(p,str) and 3 <= len(p) <= 120 for p in (start_phrase,stop_phrase)):
                 raise ValueError('Invalid voice-control settings')
+            if not isinstance(rejects,list) or len(rejects)>32 or not all(isinstance(p,str) and 1<=len(p)<=120 for p in rejects):
+                raise ValueError('Invalid contrast phrases')
             env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1', OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1')
             with (root/'control.log').open('w') as log:
                 child = subprocess.Popen([
@@ -77,6 +80,7 @@ def main():
                     '--parent-pid',str(os.getpid()),
                     '--model', str(ASSETS/'vosk-model-small-ru-0.22'),
                     '--start-phrase',start_phrase,'--stop-phrase',stop_phrase,
+                    '--reject-phrases',json.dumps(rejects,ensure_ascii=False),
                     '--heartbeat',str(heartbeat),
                 ], env=env, stdout=subprocess.DEVNULL, stderr=log)
                 deadline = time.monotonic() + 30

@@ -185,13 +185,17 @@ def main():
     parser.add_argument('--heartbeat', type=float, default=45)
     parser.add_argument('--start-phrase', default='голосовой помощник слушай')
     parser.add_argument('--stop-phrase', default='голосовой помощник пауза')
+    parser.add_argument('--reject-phrases', default='[]')
     args = parser.parse_args()
+    rejects = json.loads(args.reject_phrases)
+    if not isinstance(rejects, list) or len(rejects) > 32 or not all(isinstance(p, str) and 1 <= len(p) <= 120 for p in rejects):
+        parser.error('Invalid contrast phrases')
     bind_to_parent(args.parent_pid)
     start_wall, start_cpu = time.monotonic(), time.process_time()
     print(json.dumps({'event':'control_loading','pid':os.getpid()}),file=sys.stderr,flush=True)
     control = VoiceControl(heartbeat_seconds=args.heartbeat,
                            start_phrase=args.start_phrase,stop_phrase=args.stop_phrase)
-    detector = CommandDetector(args.model, [control.start_phrase, control.stop_phrase])
+    detector = CommandDetector(args.model, [control.start_phrase, control.stop_phrase], rejects)
     loaded_wall, loaded_cpu = time.monotonic(), time.process_time()
     print(json.dumps({'event':'control_loaded','cpu_s':loaded_cpu-start_cpu}),file=sys.stderr,flush=True)
     counts, modes, events, error = {}, {}, [], ''

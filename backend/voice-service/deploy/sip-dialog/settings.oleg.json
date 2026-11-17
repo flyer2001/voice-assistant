@@ -1,0 +1,8 @@
+{
+  "version": "2.0.0",
+  "date": "2026-11-17",
+  "reason": "Major: Sergey selected Oleg as the name for the command trial",
+  "start_phrase": "олег слушай",
+  "stop_phrase": "олег пауза",
+  "heartbeat_seconds": 45
+}

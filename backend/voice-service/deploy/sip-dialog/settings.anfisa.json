@@ -1,0 +1,16 @@
+{
+  "version": "3.0.0",
+  "date": "2026-11-17",
+  "reason": "Major: distinguish Alice and standalone names without executing them",
+  "start_phrase": "анфиса слушай",
+  "stop_phrase": "анфиса пауза",
+  "heartbeat_seconds": 45,
+  "reject_phrases": [
+    "алиса слушай",
+    "алиса пауза",
+    "алиса включи музыку",
+    "алиса отправляй",
+    "алиса",
+    "анфиса"
+  ]
+}
