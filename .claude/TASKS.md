@@ -84,6 +84,9 @@ async callback + TTS dual channel (2026-07-05), Phase 6 focus routing
       Отложено ради close и ближайшего дейлика, владелец voice.
 - [ ] [vendor:codex] Перевести VK и live-transcribe на inject-native для
       Codex-целей, проверить голосовой ответ и очередь busy с кодом 5.
+      Критерий для встречи — новый блок появляется в том же чате после
+      завершения активного хода. Встречи 20 и 23.11 проверили сохранение
+      текста, но не автоматическую доставку.
       Inbox 01a1bbc7-2d31-762b-a7d7-c98f067e55fe, этап 4 п.4
       agentops/.claude/plans/2026-11-07-codex-happy-exit.md.
       Claude-доставка остаётся отдельным путём. Done — idle/busy/Claude smoke,
