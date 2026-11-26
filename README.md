@@ -43,6 +43,8 @@ README — основная точка входа для Sergey и любой н
 ## Код и контракты
 
 - [Backend contract](specs/backend-protocol.md) — интерфейс клиент–backend.
+- [Приватный голосовой тракт](specs/private-voice-channel.md) — user stories,
+  критерии приватности и прожарка перед реализацией.
 - [Swift package](Sources/VoiceAssistant/) и [тесты](Tests/).
 - [Backend](backend/voice-service/) и [его deployment](backend/voice-service/deploy/README.md).
 - Клиенты: [iOS](iOS/README.md), [Mac voice-agent](clients/voice-agent-mac/README.md),
