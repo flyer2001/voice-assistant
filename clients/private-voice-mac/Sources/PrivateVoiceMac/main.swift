@@ -79,22 +79,27 @@ private final class Pilot {
     private let speakers: (String, UInt32)?
     private let forceTest: Bool
     private let dryRun: Bool
+    private let meetingMonitor: MeetingMonitor
+    private var lastMeeting: VoicePolicy.MeetingState?
     private var policy = VoicePolicy()
     private var snapshot: VCOutput?
     private var lastPresence: Bool?
     private var notBefore = Date().timeIntervalSince1970
     private var timer: DispatchSourceTimer?
+    private var ownerInput: DispatchSourceRead?
     private var timerFast = false
-    private var playback: (OpaquePointer, VoicePolicy.Delivery, UUID, Double, Double)?
+    private var playback: (OpaquePointer?, VoicePolicy.Delivery, UUID, Double, Double)?
     private var nextScan: Double = 0
     private var observers: [NSObjectProtocol] = []
 
-    init(inbox: URL, headset: String, speakers: (String, UInt32)?, forceTest: Bool, dryRun: Bool) {
+    init(inbox: URL, headset: String, speakers: (String, UInt32)?, forceTest: Bool, dryRun: Bool,
+         obsProbe: String?) {
         self.inbox = inbox
         self.headset = headset
         self.speakers = speakers
         self.forceTest = forceTest
         self.dryRun = dryRun
+        meetingMonitor = MeetingMonitor(obsProbe: obsProbe)
     }
 
     private var uptime: Double { ProcessInfo.processInfo.systemUptime }
@@ -135,8 +140,18 @@ private final class Pilot {
     private func finish(_ result: String) {
         guard let (handle, _, id, _, _) = playback else { return }
         playback = nil
-        vc_stop(handle)
+        if let handle { vc_stop(handle) }
         log("\(result) \(id.uuidString)")
+    }
+
+    private func refreshMeeting(acknowledgeIdleTalk: Bool = false) {
+        let state = meetingMonitor.state(acknowledgeIdleTalk: acknowledgeIdleTalk)
+        guard lastMeeting != state else { return }
+        lastMeeting = state
+        notBefore = Date().timeIntervalSince1970
+        policy.updateMeeting(state)
+        log("meeting \(state)")
+        if state != .clear { finish("interrupted_meeting") }
     }
 
     private func changeMode(_ paused: Bool) {
@@ -148,6 +163,7 @@ private final class Pilot {
 
     private func ownerCommand(_ command: String) {
         refreshOutput()
+        if command != "resume" { refreshMeeting() }
         let now = uptime
         switch command {
         case "force":
@@ -157,7 +173,10 @@ private final class Pilot {
             policy.invalidateOutput()
             finish("interrupted")
         case "pause": changeMode(true)
-        case "resume": changeMode(false)
+        case "resume":
+            refreshMeeting(acknowledgeIdleTalk: true)
+            changeMode(false)
+            log(lastMeeting == .clear ? "resumed" : "resume_pending_meeting")
         case "quit":
             finish("interrupted")
             exit(0)
@@ -206,12 +225,16 @@ private final class Pilot {
             return
         }
         refreshOutput()
+        refreshMeeting()
         guard var snapshot, policy.canStart(choice, now: uptime) else {
             log("skipped_route_changed \(event.id)")
             return
         }
         let result = choice.content == .cue ? "cue" : "speech"
+        let duration = Double(samples.count) / 16_000
         if dryRun {
+            let end = uptime + duration
+            playback = (nil, choice, event.id, end, end)
             log("would_play_\(result) \(event.id)")
             return
         }
@@ -226,7 +249,6 @@ private final class Pilot {
             return
         }
         let start = uptime
-        let duration = Double(samples.count) / 16_000
         playback = (handle, choice, event.id, start + duration, start + duration + 2)
         log("playing_\(result) \(event.id)")
     }
@@ -253,12 +275,13 @@ private final class Pilot {
 
     private func tick() {
         refreshOutput()
+        refreshMeeting()
         let now = uptime
         if let (handle, delivery, _, earliestEnd, hardEnd) = playback {
-            if !policy.canContinue(delivery, now: now) || !vc_matches(handle) {
+            if !policy.canContinue(delivery, now: now) || handle.map(vc_matches) == false {
                 finish("interrupted")
-            } else if now >= earliestEnd, vc_finished(handle) {
-                finish(delivery.content == .cue ? "cue_played" : "played")
+            } else if now >= earliestEnd, handle.map(vc_finished) ?? true {
+                finish(handle == nil ? "simulated_end" : delivery.content == .cue ? "cue_played" : "played")
             } else if now >= hardEnd {
                 finish("audio_timeout")
             }
@@ -289,14 +312,15 @@ private final class Pilot {
                 guard let line = readLine() else { exit(0) }
                 self?.ownerCommand(line.trimmingCharacters(in: .whitespacesAndNewlines))
             }
+            ownerInput = input
             input.resume()
-            withExtendedLifetime(input) { startTimer() }
         }
         startTimer()
     }
 
     private func startTimer() -> Never {
         refreshOutput()
+        refreshMeeting()
         log("ready")
         let timer = DispatchSource.makeTimerSource(queue: .main)
         self.timer = timer
@@ -317,7 +341,7 @@ private func main() throws {
         try submit(args)
     case "listen":
         guard args.count >= 3, !args[2].isEmpty else {
-            throw PilotError("usage: listen INBOX HEADSET_UID [SPEAKER_UID SPEAKER_SOURCE] [--dry-run] [--force-test]")
+            throw PilotError("usage: listen INBOX HEADSET_UID [SPEAKER_UID SPEAKER_SOURCE] [--dry-run] [--force-test] [--obs-probe=PATH]")
         }
         let flags = Set(args.dropFirst(3).filter { $0.hasPrefix("--") })
         let positional = args.dropFirst(3).filter { !$0.hasPrefix("--") }
@@ -329,13 +353,19 @@ private func main() throws {
         } else {
             throw PilotError("expected speaker UID and numeric data source")
         }
-        guard flags.isSubset(of: ["--dry-run", "--force-test"]) else { throw PilotError("unknown flag") }
+        let probeFlags = flags.filter { $0.hasPrefix("--obs-probe=") }
+        guard probeFlags.count <= 1, flags.subtracting(probeFlags).isSubset(of: ["--dry-run", "--force-test"]) else {
+            throw PilotError("unknown or duplicate flag")
+        }
+        let obsProbe = probeFlags.first.map { String($0.dropFirst("--obs-probe=".count)) }
+        if let obsProbe, !obsProbe.hasPrefix("/") { throw PilotError("OBS probe needs an absolute path") }
         let directory = try privateDirectory(args[1])
         let lock = open(directory.appendingPathComponent(".listener.lock").path,
                         O_CREAT | O_NOFOLLOW | O_RDWR, 0o600)
         guard lock >= 0, flock(lock, LOCK_EX | LOCK_NB) == 0 else { throw PilotError("inbox already in use") }
         Pilot(inbox: directory, headset: args[2], speakers: speaker,
-              forceTest: flags.contains("--force-test"), dryRun: flags.contains("--dry-run")).run()
+              forceTest: flags.contains("--force-test"), dryRun: flags.contains("--dry-run"),
+              obsProbe: obsProbe).run()
     default:
         throw PilotError("commands: route, listen, submit")
     }

@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 
 try:
     import websocket  # websocket-client, на маке уже стоит
@@ -32,12 +33,12 @@ CONFIG = os.path.expanduser(
     "~/Library/Application Support/obs-studio/plugin_config/obs-websocket/config.json")
 
 
-def connect():
+def connect(timeout=10):
     cfg = json.load(open(CONFIG))
     if not cfg.get("server_enabled"):
         sys.exit("сервер WebSocket в OBS выключен: Tools → WebSocket Server Settings")
     ws = websocket.create_connection(
-        f"ws://127.0.0.1:{cfg.get('server_port', 4455)}", timeout=10)
+        f"ws://127.0.0.1:{cfg.get('server_port', 4455)}", timeout=timeout)
     hello = json.loads(ws.recv())["d"]
     ident = {"rpcVersion": 1}
     auth = hello.get("authentication")
@@ -69,8 +70,31 @@ def hhmmss(ms):
     return f"{s // 3600:02d}:{s % 3600 // 60:02d}:{s % 60:02d}"
 
 
+def watch_record():
+    """Report recording state locally without inspecting the recording."""
+    while True:
+        ws = None
+        try:
+            ws = connect(timeout=0.6)
+            while True:
+                state = call(ws, "GetRecordStatus").get("outputActive")
+                if type(state) is not bool:
+                    raise ValueError("unknown recording state")
+                print("recording" if state else "clear", time.time(), flush=True)
+                time.sleep(0.2)
+        except (SystemExit, ValueError, KeyError, OSError, websocket.WebSocketException):
+            print("unknown", time.time(), flush=True)
+        finally:
+            if ws:
+                ws.close(timeout=0)
+        time.sleep(0.5)
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "watch-record":
+        watch_record()
+        return
     ws = connect()
 
     if cmd == "status":

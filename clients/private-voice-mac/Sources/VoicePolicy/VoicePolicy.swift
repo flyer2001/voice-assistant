@@ -28,6 +28,7 @@ public struct VoiceEvent {
 }
 
 public struct VoicePolicy {
+    public enum MeetingState { case clear, busy, unknown }
     public struct Delivery: Equatable {
         public enum Content { case speech, cue }
         public let content: Content
@@ -37,7 +38,7 @@ public struct VoicePolicy {
     }
 
     public enum Decision: Equatable {
-        public enum Skip: String { case duplicate, stale, paused, busy, unavailable, capacity }
+        public enum Skip: String { case duplicate, stale, paused, busy, meeting, unavailable, capacity }
         case play(Delivery)
         case skipped(Skip)
 
@@ -52,6 +53,7 @@ public struct VoicePolicy {
     public private(set) var output: OutputRoute?
     private var headphonesConnected = false
     private var paused = false
+    private var meeting: MeetingState = .clear
     private var generation = 0
     private var speakerUntil: TimeInterval?
     private var seen: [String: TimeInterval] = [:]
@@ -71,13 +73,19 @@ public struct VoicePolicy {
         invalidateOutput()
     }
 
+    public mutating func updateMeeting(_ value: MeetingState) {
+        guard meeting != value else { return }
+        meeting = value
+        invalidateOutput()
+    }
+
     public mutating func invalidateOutput() {
         speakerUntil = nil
         generation += 1
     }
 
     public mutating func enableSpeaker(now: TimeInterval) -> Bool {
-        guard output?.kind == .speakers, !headphonesConnected, !paused else { return false }
+        guard meeting == .clear, output?.kind == .speakers, !headphonesConnected, !paused else { return false }
         if !speakerAllowed(now: now) { generation += 1 }
         speakerUntil = now + Self.speakerIdleLimit
         return true
@@ -103,6 +111,7 @@ public struct VoicePolicy {
         // Count attempts even when output is blocked. Retries cannot turn a cue into speech.
         seen[event.id] = event.expiresAt + Self.eventLifetimeLimit
         guard !paused else { return .skipped(.paused) }
+        guard meeting == .clear else { return .skipped(.meeting) }
         guard !playing else { return .skipped(.busy) }
         guard let output else { return .skipped(.unavailable) }
         let content: Delivery.Content = output.kind == .headphones || speakerAllowed(now: now) ? .speech : .cue
@@ -114,7 +123,8 @@ public struct VoicePolicy {
     }
 
     public func canContinue(_ delivery: Delivery, now: TimeInterval) -> Bool {
-        guard !paused, generation == delivery.generation, output == delivery.output else { return false }
+        guard !paused, meeting == .clear, generation == delivery.generation,
+              output == delivery.output else { return false }
         return delivery.content == .cue || delivery.output.kind == .headphones || speakerAllowed(now: now)
     }
 

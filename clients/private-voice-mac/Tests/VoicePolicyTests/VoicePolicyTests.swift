@@ -104,3 +104,33 @@ private func event(_ id: String = "report", created: Double = 100, expires: Doub
     #expect(!policy.canContinue(delivery, now: 102))
     #expect(policy.receive(event("new"), now: 102).delivery?.content == .cue)
 }
+
+@Test func meetingBlocksBothSpeechAndCuesAndRevokesForce() throws {
+    var policy = VoicePolicy()
+    policy.updateOutput(speakers, headphonesConnected: false)
+    let enabled = policy.enableSpeaker(now: 100)
+    #expect(enabled)
+    let delivery = try #require(policy.receive(event(), now: 101).delivery)
+
+    policy.updateMeeting(.busy)
+    #expect(!policy.canContinue(delivery, now: 102))
+    let attemptedDuringMeeting = policy.enableSpeaker(now: 102)
+    #expect(!attemptedDuringMeeting)
+    #expect(policy.receive(event("blocked"), now: 102) == .skipped(.meeting))
+    policy.updateMeeting(.unknown)
+    #expect(policy.receive(event("unknown"), now: 103) == .skipped(.meeting))
+
+    policy.updateMeeting(.clear)
+    #expect(policy.receive(event("blocked"), now: 104) == .skipped(.duplicate))
+    #expect(policy.receive(event("fresh"), now: 104).delivery?.content == .cue)
+    #expect(!policy.canStart(delivery, now: 104))
+}
+
+@Test func meetingClearCannotOverrideManualPause() {
+    var policy = VoicePolicy()
+    policy.updateOutput(headphones, headphonesConnected: true)
+    policy.setPaused(true)
+    policy.updateMeeting(.busy)
+    policy.updateMeeting(.clear)
+    #expect(policy.receive(event(), now: 101) == .skipped(.paused))
+}
